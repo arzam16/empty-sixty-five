@@ -4,6 +4,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 # Table of contents
 <!--ts-->
 * [The state of MT65xx in mainline Linux kernel](#the-state-of-mt65xx-in-mainline-linux-kernel)
+* [mt83xx/mt65xx comparison](#mt83xxmt65xx-comparison)
 * [Extracting information from the running device](#extracting-information-from-the-running-device)
     * [CPU Operating points](#cpu-operating-points)
     * [GPIO Pins](#gpio-pins)
@@ -43,6 +44,17 @@ There's **no clock driver** for these chipsets which is the most limiting factor
 * MIPI subsystem (display stuff)
 
 There's also **no GPIO and pinctrl** stuff for mt65xx. Unless you can write the drivers yourself, do not expect your mainlined device to be of any worth.
+
+# mt83xx/mt65xx comparison
+
+| Chipset | Technology node | Cores | Max frequency        | Core architecture | GPU            | Max screen resolution | Identical to |
+|---------|-----------------|-------|----------------------|-------------------|----------------|-----------------------|--------------|
+| mt8317  | 40 nm           | 2     | 1.2 GHz              | Cortex-A9         | PowerVR SGX531 | 1280x720              | mt6517       |
+| mt8377  | 40 nm           | 2     | 1.2 GHz              | Cortex-A9         | PowerVR SGX531 | 1280x720              | mt6577       |
+| mt8389  | 28 nm           | 4     | 1.2 GHz              | Cortex-A7         | PowerVR SGX544 | 1920x1080             | mt6589       |
+| mt8312  | 28 nm           | 2     | 1.2 GHz              | Cortex-A7         | Mali-400 MP1   | 1280x720              | mt6572       |
+| mt8382  | 28 nm           | 4     | 1.3 GHz              | Cortex-A7         | Mali-400 MP2   | 1280x720              | mt6582       |
+| mt8392  | 28 nm           | 8     | 4x2.0 GHz, 4x1.7 GHz | Cortex-A7         | Mali-450 MP4   | 1920x1080             | mt6592       |
 
 # Extracting information from the running device
 _It's implied your device has root and busybox, and is connected to your PC via ADB, and the shell is running_
