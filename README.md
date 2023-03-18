@@ -7,6 +7,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
         * [GPIO Pins](#gpio-pins)
         * [I2C](#i2c)
         * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
+        * [PMIC](#pmic)
 <!--te-->
 
 ## Extracting information from the running device
@@ -69,3 +70,17 @@ console=ttyMT3,921600n1 vmalloc=320M lcm=1-lg4573b fps=5965 pl_t=582 lk_t=5249
 console=ttyMT3,921600n1 vmalloc=506M slub_max_order=0 lcm=1-hx8379a_dsi_vdo_bidirectional fps=5300 pl_t=3466 lk_t=3184
 ```
 See the `lcm=` parameter, remove leading digit and dash. LCM names from example outputs are `lg4573b` and `hx8379a_dsi_vdo_bidirectional` respectively.
+
+### PMIC
+This command prints known voltage values in millivolts (mV):
+```
+busybox find /sys/devices/platform/mt-pmic/ -iname '*volt*' -print -exec cat '{}' \; -exec echo \;
+```
+Example output:
+```
+/sys/devices/platform/mt-pmic/LDO_VCAM_AF_VOLTAGE
+2800
+
+/sys/devices/platform/mt-pmic/BUCK_VCORE_VOLTAGE
+800
+```
