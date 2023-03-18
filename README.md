@@ -13,6 +13,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 * [Searching in the source code](#searching-in-the-source-code)
     * [CPU Operating points](#cpu-operating-points-1)
         * [MT6572](#mt6572)
+        * [MT6577 + MT6329 PMIC](#mt6577--mt6329-pmic)
     * [Register addresses](#register-addresses)
 * [Debugging over UART](#debugging-over-uart)
     * [1. Visual inspection](#1-visual-inspection)
@@ -172,6 +173,27 @@ mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_V0  
 mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_V1              (1150)  // mV
 mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_MIN_VCORE       (1150)
 ```
+
+### MT6577 + MT6329 PMIC
+`mediatek/platform/mt6577/kernel/core/mt_cpufreq.c` has the following macro:
+```
+#define OP(cpufreq)         \
+{                           \
+    .cpufreq_mhz = cpufreq, \
+}
+```
+The voltages are not specified here! However, by analyzing this file it's possible to find how Linux kernel interacts with PMIC by writing values which depend on chosen frequency:
+```
+  if (freq_new == DVFS_F1) ... DRV_WriteReg32(SC_AP_DVFS_CON, ((DRV_Reg32(SC_AP_DVFS_CON) & 0xFFFFFFFC) | 0x00));
+  else if (freq_new == DVFS_F2) ... DRV_WriteReg32(SC_AP_DVFS_CON, ((DRV_Reg32(SC_AP_DVFS_CON) & 0xFFFFFFFC) | 0x03));
+  else if (freq_new == DVFS_F3) ... DRV_WriteReg32(SC_AP_DVFS_CON, ((DRV_Reg32(SC_AP_DVFS_CON) & 0xFFFFFFFC) | 0x03));
+  else if (freq_new == DVFS_F4) ... DRV_WriteReg32(SC_AP_DVFS_CON, ((DRV_Reg32(SC_AP_DVFS_CON) & 0xFFFFFFFC) | 0x03));
+```
+It's quite similar to how MT6572 (see above) uses one voltage for the highest frequency, and the other voltage for all other frequencies. Most likely `0x00` and `0x03` values mean some voltage setting. Some PDF from the internet says:
+
+_Before the CA9 clock rate speeds up, the software needs to program the external PMIC. VPROC from companion PMIC MT6329 can be programmed by I2C interface, or VPROC can be controlled by pin PMUCTRL1/0 (DVS fast control) from MT6577. Please refer to MT6329 datasheet for detailed programming guides. **There is the 4-step setup by values 0x0, 0x1, 0x2 and 0x3, standing for voltages from low to high**._
+
+But I couldn't figure out what voltage does each value represent.
 
 ## Register addresses
 Mainlining a device involves writing a Device Tree Source file which requires you to know exact register addresses. Mediatek source code uses _virtual_ register addresses, but DTS needs _physical_ addresses. To solve this, you need to look in `mediatek/platform/mt65xx/kernel/core/include/mach/memory.h` and search for `IO_VIRT_TO_PHYS` macro there.
