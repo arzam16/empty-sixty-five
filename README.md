@@ -5,6 +5,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 <!--ts-->
 * [The state of MT65xx in mainline Linux kernel](#the-state-of-mt65xx-in-mainline-linux-kernel)
 * [Extracting information from the running device](#extracting-information-from-the-running-device)
+    * [CPU Operating points](#cpu-operating-points)
     * [GPIO Pins](#gpio-pins)
     * [I2C](#i2c)
     * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
@@ -37,6 +38,23 @@ There's also **no GPIO and pinctrl** stuff for mt65xx. Unless you can write the 
 
 # Extracting information from the running device
 _It's implied your device has root and busybox, and is connected to your PC via ADB, and the shell is running_
+
+## CPU Operating points
+There has to be a way to find voltages required for mainline kernel. As of now, the command below just prints all available CPU frequencies. **All CPU cores must be running for correct output**, start some stress test program. It doesn't matter if it's some Pi value calculator or cryptocurrency miner. Other cores might symlink their frequency list to the first core.
+```
+busybox find /sys/devices/system/cpu -type f -name 'time_in_state' -print -exec cat '{}' \; | busybox cut -d ' ' -f 1
+```
+Example output:
+```
+/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state
+250250
+500500
+667333
+750750
+834166
+1001000
+1209000
+```
 
 ## GPIO Pins
 _The output seems to be always stripped_
