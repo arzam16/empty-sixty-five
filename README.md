@@ -18,6 +18,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 * [Working with BootROM / Preloader / Download agents](#working-with-bootrom--preloader--download-agents)
     * [Issues related to the use of virtual machines](#issues-related-to-the-use-of-virtual-machines)
     * [USB devices](#usb-devices)
+    * [Booting into the BootROM mode](#booting-into-the-bootrom-mode)
 * [Debugging over UART](#debugging-over-uart)
     * [1. Visual inspection](#1-visual-inspection)
     * [2. Schematics](#2-schematics)
@@ -234,6 +235,15 @@ Below is the table of the common VID/PIDs used by Mediatek devices. If you are u
 | 0e8d | 2001 | Download agent |
 
 **Note**: There *are* other VID/PIDs used by modern devices and their values depend on specific manufacturer. These 3, however, should be enough for 99% of mt65xx devices.
+
+## Booting into the BootROM mode
+For some reasons you might want to use BootROM mode instead Preloader mode.
+
+1. **☢️☢️☢️ WARNING: MAKE A BACKUP FIRST ☢️☢️☢️** The one-size-fits-all way to get into the BootROM mode is to corrupt the preloader stored in the internal memory (PRELOADER partition). You can do this in variety of ways:
+   * Write some random data to the start of the PRELOADER partition. Though even 1 kB is enough I tend to overwrite the whole partition. If your device is rooted you can do it right there with `dd`. Otherwise you can always rely on proprietary SP Flash Tool (enable Advanced Mode and look for "Write Memory" tab) or FLOSS software such as mtkclient.
+   * Format the whole internal storage. Try to avoid this option as you're risking losing NVRAM and other important stuff.
+2. Some devices boot into BootROM when some key is held. Usually it's one of the volume keys.
+3. Some devices enter BootROM mode when connected to PC without a battery.
 
 # Debugging over UART
 UART is one of the best tools for gathering information and even communicating with your device. Usually a single SoC has multiple UARTs for various purposes. For example, one of UARTs could be used to control the wireless hardware (Wi-Fi, Bluetooth, GPS, Radio...). Despite its advantages, there are several drawbacks. First, there's need to tear down the device to access UART. Second, you will need a soldering iron with thin tip and some good flux, _and_ skills to use them. Third, most Mediatek devices have UART pins exposed on the motherboard, however identifying them might not be the easiest task. I will go through some ways to find UART pads, Fly IQ430 (MT6577) will be used as an example.
