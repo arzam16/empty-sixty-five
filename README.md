@@ -15,6 +15,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
         * [MT6572](#mt6572)
         * [MT6577 + MT6329 PMIC](#mt6577--mt6329-pmic)
     * [Register addresses](#register-addresses)
+    * [IRQ (Interrupt request) IDs](#irq-interrupt-request-ids)
 * [Working with BootROM / Preloader / Download agents](#working-with-bootrom--preloader--download-agents)
     * [Issues related to the use of virtual machines](#issues-related-to-the-use-of-virtual-machines)
     * [USB devices](#usb-devices)
@@ -218,6 +219,13 @@ After virtual to physical address conversion is sorted out, it's safe to continu
 8. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_emi_mpu.h`
 
 Data gathered from the first 2 files is usually enough to boot basic mainline kernel.
+
+## IRQ (Interrupt request) IDs
+They are required for various hardware in dts(i), see file `mediatek/platform/mt65xx/kernel/core/include/mach/mt_irq.h`. The addendum of `GIC_*_SIGNALS` is the IRQ number, example:
+```
+#define MT_TS_IRQ_ID    (GIC_PRIVATE_SIGNALS + 21)
+                                               ^^--- IRQ ID
+```
 
 # Working with BootROM / Preloader / Download agents
 ## Issues related to the use of virtual machines
