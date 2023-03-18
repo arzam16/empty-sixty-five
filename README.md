@@ -5,6 +5,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 <!--ts-->
     * [Extracting information from the running device](#extracting-information-from-the-running-device)
         * [GPIO Pins](#gpio-pins)
+        * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
 <!--te-->
 
 ## Extracting information from the running device
@@ -39,3 +40,13 @@ Output description ([source](https://4pda.ru/forum/index.php?showtopic=535287&st
 7 [INV]
 8 [IES]
 ```
+### LCM (LCD panel / controller model)
+```
+cat /proc/cmdline
+```
+Example outputs:
+```
+console=ttyMT3,921600n1 vmalloc=320M lcm=1-lg4573b fps=5965 pl_t=582 lk_t=5249
+console=ttyMT3,921600n1 vmalloc=506M slub_max_order=0 lcm=1-hx8379a_dsi_vdo_bidirectional fps=5300 pl_t=3466 lk_t=3184
+```
+See the `lcm=` parameter, remove leading digit and dash. LCM names from example outputs are `lg4573b` and `hx8379a_dsi_vdo_bidirectional` respectively.
