@@ -15,6 +15,8 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
         * [MT6572](#mt6572)
         * [MT6577 + MT6329 PMIC](#mt6577--mt6329-pmic)
     * [Register addresses](#register-addresses)
+* [Working with BootROM / Preloader / Download agents](#working-with-bootrom--preloader--download-agents)
+    * [Issues related to the use of virtual machines](#issues-related-to-the-use-of-virtual-machines)
 * [Debugging over UART](#debugging-over-uart)
     * [1. Visual inspection](#1-visual-inspection)
     * [2. Schematics](#2-schematics)
@@ -214,6 +216,12 @@ After virtual to physical address conversion is sorted out, it's safe to continu
 8. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_emi_mpu.h`
 
 Data gathered from the first 2 files is usually enough to boot basic mainline kernel.
+
+# Working with BootROM / Preloader / Download agents
+## Issues related to the use of virtual machines
+* **⚠️ Warning!** If you are using Virtual Box above v6 with USB passthrough to interact with BootROM / Preloader / DAs you might encounter a performance issue that slows down reconnecting your device from host to guest. It must happen *very* fast but due to the bug it doesn't and the bootloader reaches timeout faster than the handshake is completed. Older versions of VirtualBox such as v5 do not have this issue.
+* Device connects as USB 2.0 so if you're using Virtual Box, corresponding Extension Pack is required.
+* (Linux only) If VirtualBox doesn't detect any USB devices at all, make sure the current user is in `vboxusers` group.
 
 # Debugging over UART
 UART is one of the best tools for gathering information and even communicating with your device. Usually a single SoC has multiple UARTs for various purposes. For example, one of UARTs could be used to control the wireless hardware (Wi-Fi, Bluetooth, GPS, Radio...). Despite its advantages, there are several drawbacks. First, there's need to tear down the device to access UART. Second, you will need a soldering iron with thin tip and some good flux, _and_ skills to use them. Third, most Mediatek devices have UART pins exposed on the motherboard, however identifying them might not be the easiest task. I will go through some ways to find UART pads, Fly IQ430 (MT6577) will be used as an example.
