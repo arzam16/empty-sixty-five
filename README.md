@@ -8,6 +8,8 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
         * [I2C](#i2c)
         * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
         * [PMIC](#pmic)
+    * [Searching in the source code](#searching-in-the-source-code)
+        * [Register addresses](#register-addresses)
 <!--te-->
 
 ## Extracting information from the running device
@@ -84,3 +86,26 @@ Example output:
 /sys/devices/platform/mt-pmic/BUCK_VCORE_VOLTAGE
 800
 ```
+
+## Searching in the source code
+_It's great if there is a public kernel source code for your SoC. If you have a kernel source code for your exact device model, you can do a bit more. Usually old mediatek kernels have directory structure like [this](https://github.com/rex-xxx/mt6572_x201/tree/f87ef7407576b4fd190c76287e92b2e9886ca484), or [this](https://github.com/arzam16/mt6577_kernel_Acer_B1_A71). Newer kernels have [this](https://github.com/WikoGeek-Unofficial/android_kernel_wiko_mt6577) directory structure. Anyway, the `mediatek/platforrm/mt65xx` directory is what we need._
+
+### Register addresses
+Mainlining a device involves writing a Device Tree Source file which requires you to know exact register addresses. Mediatek source code uses _virtual_ register addresses, but DTS needs _physical_ addresses. To solve this, you need to look in `mediatek/platform/mt65xx/kernel/core/include/mach/memory.h` and search for `IO_VIRT_TO_PHYS` macro there.
+
+Example ([source](https://github.com/arzam16/mt6577_kernel_Acer_B1_A71/blob/67a47ce448ed2dad6004f1d5244d5fc26a0907ef/mediatek/platform/mt6577/kernel/core/include/mach/memory.h#L20)):
+```
+#define IO_VIRT_TO_PHYS(v) (0xC0000000 | ((v) & 0x0fffffff))
+```
+What this function does is simply replacing the first hexadecimal digit with 'C'. So, if downstream kernel source code lists some register address as `0xF0001234`, then its physical address is just `0xC0001234`. Though there might be more complicated functions.
+After virtual to physical address conversion is sorted out, it's safe to continue working on registers. Below are major sources of register addresses:
+1. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_reg_base.h` - should list registers for big SoC subsystems
+2. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_clock_manager.h` - should contain most of the clock-related registers
+3. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_device_apc.h` - DEVAPC (DEVice Automatic Power Control)
+4. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_dcm.h`
+5. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_cpe.h`
+6. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_emi_bm.h`
+7. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_emi_bwl.h`
+8. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_emi_mpu.h`
+
+Data gathered from the first 2 files is usually enough to boot basic mainline kernel.
