@@ -5,6 +5,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 <!--ts-->
     * [Extracting information from the running device](#extracting-information-from-the-running-device)
         * [GPIO Pins](#gpio-pins)
+        * [I2C](#i2c)
         * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
 <!--te-->
 
@@ -40,6 +41,24 @@ Output description ([source](https://4pda.ru/forum/index.php?showtopic=535287&st
 7 [INV]
 8 [IES]
 ```
+
+### I2C
+The command should list all attached I2C devices on all busses of your device:
+```
+find /sys/devices/platform/mt*i2c.* -mindepth 2 -name 'driver' -print -exec realpath '{}' \; -exec echo \;
+```
+Example output:
+```
+/sys/devices/platform/mt-i2c.0/i2c-0/0-0036/driver
+/sys/bus/i2c/drivers/ncp1851
+
+/sys/devices/platform/mt-i2c.0/i2c-0/0-004c/driver
+/sys/bus/i2c/drivers/MC32X0
+```
+Output of this command contains 2 lines for each attached device:
+* /sys/devices/platform/mt-i2c.0/i2c-0/0-**0036**/driver ← I2C address (hex)
+* /sys/bus/i2c/drivers/**ncp1851** ← Driver name which could hint the actual hardware
+
 ### LCM (LCD panel / controller model)
 ```
 cat /proc/cmdline
