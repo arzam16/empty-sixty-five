@@ -3,6 +3,7 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 
 ## Table of contents
 <!--ts-->
+    * [The state of MT65xx in mainline Linux kernel](#the-state-of-mt65xx-in-mainline-linux-kernel)
     * [Extracting information from the running device](#extracting-information-from-the-running-device)
         * [GPIO Pins](#gpio-pins)
         * [I2C](#i2c)
@@ -23,6 +24,16 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
             * [Output typical to Boot ROM and Preloader (UART1)](#output-typical-to-boot-rom-and-preloader-uart1)
             * [Output typical to U-Boot and Linux kernel (UART4)](#output-typical-to-u-boot-and-linux-kernel-uart4)
 <!--te-->
+
+## The state of MT65xx in mainline Linux kernel
+**Only basic hardware works**: CPU cores, generic interrupt controller, timer, UART, (sometimes) watchdog.
+
+There's **no clock driver** for these chipsets which is the most limiting factor as of now. With working clocks, it would be theoretically possible to bring this hardware to life:
+* MMC (internal memory and microSD card support)
+* I2C (implementing this will make a lot of devices work)
+* MIPI subsystem (display stuff)
+
+There's also **no GPIO and pinctrl** stuff for mt65xx. Unless you can write the drivers yourself, do not expect your mainlined device to be of any worth.
 
 ## Extracting information from the running device
 _It's implied your device has root and busybox, and is connected to your PC via ADB, and the shell is running_
