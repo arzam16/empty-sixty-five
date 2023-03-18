@@ -10,6 +10,18 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
         * [PMIC](#pmic)
     * [Searching in the source code](#searching-in-the-source-code)
         * [Register addresses](#register-addresses)
+    * [Debugging over UART](#debugging-over-uart)
+        * [1. Visual inspection](#1-visual-inspection)
+        * [2. Schematics](#2-schematics)
+            * [2.1 General schematics](#21-general-schematics)
+            * [2.2 Board schematic / board view file](#22-board-schematic--board-view-file)
+        * [3. Asking on the internet](#3-asking-on-the-internet)
+        * [Connecting to UART](#connecting-to-uart)
+            * [Hardware](#hardware)
+            * [Software](#software)
+            * [UART description](#uart-description)
+            * [Output typical to Boot ROM and Preloader (UART1)](#output-typical-to-boot-rom-and-preloader-uart1)
+            * [Output typical to U-Boot and Linux kernel (UART4)](#output-typical-to-u-boot-and-linux-kernel-uart4)
 <!--te-->
 
 ## Extracting information from the running device
@@ -109,3 +121,112 @@ After virtual to physical address conversion is sorted out, it's safe to continu
 8. `mediatek/platform/mt65xx/kernel/core/include/mach/mt_emi_mpu.h`
 
 Data gathered from the first 2 files is usually enough to boot basic mainline kernel.
+
+## Debugging over UART
+UART is one of the best tools for gathering information and even communicating with your device. Usually a single SoC has multiple UARTs for various purposes. For example, one of UARTs could be used to control the wireless hardware (Wi-Fi, Bluetooth, GPS, Radio...). Despite its advantages, there are several drawbacks. First, there's need to tear down the device to access UART. Second, you will need a soldering iron with thin tip and some good flux, _and_ skills to use them. Third, most Mediatek devices have UART pins exposed on the motherboard, however identifying them might not be the easiest task. I will go through some ways to find UART pads, Fly IQ430 (MT6577) will be used as an example.
+
+### 1. Visual inspection
+There's a chance the motherboard of your device has labels for important pads. Look for "TX", "RX" labels. I've seen some boards having the most straightforward and obvious labeling: "UART_0_TX", "UART_0_RX". Fly IQ430 motherboard does have labels on it:
+
+![Fly IQ430 motherboard with UART pads highlighted](images/fly-iq430-motherboard.jpg)
+
+### 2. Schematics
+Where you can download a schematics for your device for free is whole different topic and won't be discussed here. However if you are out of luck, try asking in the ["#offtopic" chat of postmarketOS](https://wiki.postmarketos.org/wiki/Matrix_and_IRC), additionally you can ping/mention me (look for arzamas-16 nickname), there's a chance of me being able to fetch the desired schematic for you.
+
+#### 2.1 General schematics
+Usually they are less informative and more generic. [This is how they look like](images/tinno-s7503b-sch.png). Just search for 'UART' or 'TX' and check the results. For example, Fly IQ430 general schematic doesn't specify the exact location of UART, and doesn't even give any clear pointers to where could it be. Some boards have alphanumeric labels on them, and general schematics could point to required pads.
+
+![TP305, TP306 UART pads on schematic](images/mp-test-points.png)
+
+#### 2.2 Board schematic / board view file
+Those are the best schematics one could have. Not only they show the exact placement of components and pads, they can also list these components, so if you screw something up, you can search for a replacement part. Boardview files require special software to open them ([OpenBoardView](https://github.com/OpenBoardView/OpenBoardView) is Free/Libre Open Source Software, and works quite good), and it can also show how internal components are connected with each other. Very nice!
+
+Just like with general schematics, search for UART-related stuff such as "UART" or "TX". Fly IQ430 board schematic tells us the exact location and names of UART pads, **but** notice how the board is flipped horizontally:
+![Fly IQ430 UART pads on board schematic](images/fly-iq430-uart-pads.png)
+
+### 3. Asking on the internet
+_Some_ devices might have interesting approaches to exposing UARTs such as using 3.5mm audio jack output or microUSB connector pads. Search it up on the internet.
+
+### Connecting to UART
+#### Hardware
+**Please do not use PL2303HX USB dongles** from AliExpress/Banggood/Wish. They are super cheap, but also they are fake because Prolific doesn't produce these chips anymore, official sources:
+1. [Warning Letter on Counterfeit Products](http://www.prolific.com.tw/US/ShowProduct.aspx?p_id=155&pcid=41)
+2. [PL2303 End-of-life notice](http://www.prolific.com.tw/US/ShowProduct.aspx?p_id=212&pcid=41)
+
+Not only you will get counterfeit and unstable hardware, but you can also do great damage to your device. I recommend using USB dongles based on **FT232RL**, they don't cost much, they support high baudrates and 1.8 V logic levels, and they just don't die out of sudden like fake PL2303-based converters.
+
+**At least 2 connections are mandatory**: the TX pad and the GND pad. Sometimes there's a UART voltage supply pad on the board, but I've never used it myself, so I'd say it's safe to not use it at all.
+
+In 95% of cases **the "TX" pad of your device has to be connected to the "RX" pin of your USB-UART dongle**. "RX" pad of your device goes to "TX" on the dongle.
+
+For dumping early boot logs on downstream kernel **connecting just a TX pad is enough**. Use RX pad for communicating your device which runs mainline kernel to access shell.
+
+#### Software
+On Linux, you are free to use literally anything you'd like to. I prefer `picocom`. On Windows `PuTTY` is usually recommended by the folks on the internet.
+
+As for baudrate, it's either 115200 or 921600 depending on the purpose of UART you've connected to.
+
+#### UART description
+UART labels and identifiers on Mediatek devices are not standardized, but there are some common patterns:
+1. UART1 (TX1/RX1) is used by the Boot ROM and Preloader. Runs at 115200 baud.
+2. UART2 (TX2/RX2) is used directly by the SoC for controlling the hardware on the board. Baud rate differs. Might not be exposed on the board.
+3. UART3 (TX3/RX3) is used directly by the SoC for controlling the hardware on the board, usually it's the wireless connectivity chip. Often it's not exposed on the board.
+4. UART4 (TX4/RX4) is used by the Preloader, and U-Boot, and Linux kernel for logging output. Runs at 921600 baud. Gets set up by U-Boot upon booting the device.
+
+#### Output typical to Boot ROM and Preloader (UART1)
+A few lines right after powering on the device. Output can be very verbose while the device is being flashed via SP Flash Tool.
+```
+RP: 0000 0000 0000
+
+F2: 3000 00A0
+F3: 0000 0000
+RP: 0000 0000
+V0: 0000 0000 [0001]
+V1: 0000 0000 [0003]
+V2: 0000 0000 [0009]
+00: 0000 0000
+
+READY
+```
+
+#### Output typical to U-Boot and Linux kernel (UART4)
+Following lines are printed by the **Preloader** after the device is powered on:
+```
+[i2c_init] Start...................
+[i2c_set_speed] Set sclk to 99 khz (orig: 100 khz)
+[i2c_set_speed] I2C Timing parameter sample_cnt_div(0),  step_cnt_div(61)
+[i2c_init] Done
+
+[pmic6329_init] Start...................
+```
+After these lines you could also see the DRAM calibration table, and the EMMC partition layout table.
+
+**U-Boot log** might begin with:
+```
+[LCM Auto Detect], we have 1 lcm drivers built in
+[LCM Auto Detect], try to find driver for [unknown]
+[LCM Specified]	[ej070na]
+[mtkfb] LCM TYPE: DPI
+[mtkfb] LCM INTERFACE: SERIAL
+[mtkfb] LCM resolution: 1024 x 600
+[PROFILE] ------- i2c init takes 1 ms -------- 
+UB wdt init
+[LEDS]LK: leds_init: mt65xx_backlight_off 
+[LEDS]LK: mt65xx_backlight_off 
+[LEDS]LK: lcd-backlight level is 0 
+[LEDS]LK: backlight_set_pwm:duty is 0
+[PROFILE] ------- led init takes 15 ms --------
+```
+U-Boot logs contain the list of partitions on EMMC, clock setup, display initialization output, and other messages related to showing the boot logo, charging (not always! some devices handle charging in Linux kernel), checking the signatures and headers. The last lines of U-Boot log look like these:
+```
+[PROFILE] ------- boot_time takes 1804 ms -------- 
+booting linux @ 0xa08000, ramdisk @ 0x4a00000 (594282)
+[LEDS]LK: leds_deinit: LEDS off 
+lk boot time = 1804 ms
+lk boot mode = 0
+lk finished --> jump to linux kernel
+```
+**Linux kernel log** starts with this line:
+```
+[   0.000000] (0)[0:swapper]Linux version 3.4.0 (marsl_lin@BM-1) (gcc version 4.6.x-google 20120106 (prerelease) (GCC) ) #1 SMP PREEMPT Tue Apr 2 19:19:54 CST 2013
+```
