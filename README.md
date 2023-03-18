@@ -11,6 +11,8 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
     * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
     * [PMIC](#pmic)
 * [Searching in the source code](#searching-in-the-source-code)
+    * [CPU Operating points](#cpu-operating-points-1)
+        * [MT6572](#mt6572)
     * [Register addresses](#register-addresses)
 * [Debugging over UART](#debugging-over-uart)
     * [1. Visual inspection](#1-visual-inspection)
@@ -130,6 +132,46 @@ Example output:
 
 # Searching in the source code
 _It's great if there is a public kernel source code for your SoC. If you have a kernel source code for your exact device model, you can do a bit more. Usually old mediatek kernels have directory structure like [this](https://github.com/rex-xxx/mt6572_x201/tree/f87ef7407576b4fd190c76287e92b2e9886ca484), or [this](https://github.com/arzam16/mt6577_kernel_Acer_B1_A71). Newer kernels have [this](https://github.com/WikoGeek-Unofficial/android_kernel_wiko_mt6577) directory structure. Anyway, the `mediatek/platforrm/mt65xx` directory is what we need._
+
+## CPU Operating points
+**Note**: some platforms only list frequencies without voltages. If you know how to find voltage values please let me know.
+
+**Note**: DVFS stands for "Dynamic Voltage Frequency Scaling"
+
+**⚠️ Warning!** Do not forget to convert millivolts to microvolts for DTS!
+
+### MT6572
+`mediatek/platform/mt6572/kernel/core/mt_cpufreq.c` has the following macro:
+```
+#define OP(khz, volt)       \
+{                           \
+    .cpufreq_khz = khz,     \
+    .cpufreq_volt = volt,   \
+}
+```
+Find usages of this macro. Example:
+```
+static struct mt_cpu_freq_info mt6572_freqs_e1_1[] = {
+    OP(DVFS_D3, DVFS_V0),
+    OP(DVFS_F1, DVFS_V1),
+    OP(DVFS_F2, DVFS_V1),
+    OP(DVFS_F3, DVFS_V1),
+};
+```
+Here we can see only constants prefixed with `DVFS_` are used. Search for their definitions:
+```
+fgrep -I 'define DVFS_' -r mediatek/ 
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_D0              (1599000)   // KHz, OD
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_D1              (1404000)   // KHz, OD
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_D2              (1300000)   // KHz, OD
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_D3              (1209000)   // KHz, OD
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_F1              (1001000)   // KHz
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_F2              (806000)    // KHz
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_F3              (598000)    // KHz
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_V0              (1250)  // mV, OD
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_V1              (1150)  // mV
+mediatek/platform/mt6572/kernel/core/include/mach/mt_cpufreq.h:#define DVFS_MIN_VCORE       (1150)
+```
 
 ## Register addresses
 Mainlining a device involves writing a Device Tree Source file which requires you to know exact register addresses. Mediatek source code uses _virtual_ register addresses, but DTS needs _physical_ addresses. To solve this, you need to look in `mediatek/platform/mt65xx/kernel/core/include/mach/memory.h` and search for `IO_VIRT_TO_PHYS` macro there.
