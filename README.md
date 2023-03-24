@@ -6,33 +6,34 @@ When I tried to mainline MT6577, I've read tons of forum posts, chat rooms and a
 * [The state of MT65xx in mainline Linux kernel](#the-state-of-mt65xx-in-mainline-linux-kernel)
 * [mt83xx/mt65xx comparison](#mt83xxmt65xx-comparison)
 * [Extracting information from the running device](#extracting-information-from-the-running-device)
-    * [CPU Operating points](#cpu-operating-points)
-    * [GPIO Pins](#gpio-pins)
-    * [I2C](#i2c)
-    * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
-    * [PMIC](#pmic)
+   * [CPU Operating points](#cpu-operating-points)
+   * [GPIO Pins](#gpio-pins)
+   * [I2C](#i2c)
+   * [LCM (LCD panel / controller model)](#lcm-lcd-panel--controller-model)
+   * [PMIC](#pmic)
 * [Searching in the source code](#searching-in-the-source-code)
-    * [CPU Operating points](#cpu-operating-points-1)
-        * [MT6572](#mt6572)
-        * [MT6577 + MT6329 PMIC](#mt6577--mt6329-pmic)
-    * [Register addresses](#register-addresses)
-    * [IRQ (Interrupt request) IDs](#irq-interrupt-request-ids)
+   * [CPU Operating points](#cpu-operating-points-1)
+      * [MT6572](#mt6572)
+      * [MT6577 + MT6329 PMIC](#mt6577--mt6329-pmic)
+   * [Register addresses](#register-addresses)
+   * [IRQ (Interrupt request) IDs](#irq-interrupt-request-ids)
 * [Working with BootROM / Preloader / Download agents](#working-with-bootrom--preloader--download-agents)
-    * [Issues related to the use of virtual machines](#issues-related-to-the-use-of-virtual-machines)
-    * [USB devices](#usb-devices)
-    * [Booting into the BootROM mode](#booting-into-the-bootrom-mode)
+   * [Issues related to the use of virtual machines](#issues-related-to-the-use-of-virtual-machines)
+   * [USB devices](#usb-devices)
+   * [Booting into the BootROM mode](#booting-into-the-bootrom-mode)
+   * [Dumping BootROM](#dumping-bootrom)
 * [Debugging over UART](#debugging-over-uart)
-    * [1. Visual inspection](#1-visual-inspection)
-    * [2. Schematics](#2-schematics)
-        * [2.1 General schematics](#21-general-schematics)
-        * [2.2 Board schematic / board view file](#22-board-schematic--board-view-file)
-    * [3. Asking on the internet](#3-asking-on-the-internet)
-    * [Connecting to UART](#connecting-to-uart)
-        * [Hardware](#hardware)
-        * [Software](#software)
-        * [UART description](#uart-description)
-        * [Output typical to Boot ROM and Preloader (UART1)](#output-typical-to-boot-rom-and-preloader-uart1)
-        * [Output typical to U-Boot and Linux kernel (UART4)](#output-typical-to-u-boot-and-linux-kernel-uart4)
+   * [1. Visual inspection](#1-visual-inspection)
+   * [2. Schematics](#2-schematics)
+      * [2.1 General schematics](#21-general-schematics)
+      * [2.2 Board schematic / board view file](#22-board-schematic--board-view-file)
+   * [3. Asking on the internet](#3-asking-on-the-internet)
+   * [Connecting to UART](#connecting-to-uart)
+      * [Hardware](#hardware)
+      * [Software](#software)
+      * [UART description](#uart-description)
+      * [Output typical to Boot ROM and Preloader (UART1)](#output-typical-to-boot-rom-and-preloader-uart1)
+      * [Output typical to U-Boot and Linux kernel (UART4)](#output-typical-to-u-boot-and-linux-kernel-uart4)
 <!--te-->
 
 # The state of MT65xx in mainline Linux kernel
@@ -264,6 +265,9 @@ For some reasons you might want to use BootROM mode instead Preloader mode.
    * Format the whole internal storage. Try to avoid this option as you're risking losing NVRAM and other important stuff.
 2. Some devices boot into BootROM when some key is held. Usually it's one of the volume keys.
 3. Some devices enter BootROM mode when connected to PC without a battery.
+
+## Dumping BootROM
+Read [brom-dump/README.md](brom-dump/README.md).
 
 # Debugging over UART
 UART is one of the best tools for gathering information and even communicating with your device. Usually a single SoC has multiple UARTs for various purposes. For example, one of UARTs could be used to control the wireless hardware (Wi-Fi, Bluetooth, GPS, Radio...). Despite its advantages, there are several drawbacks. First, there's need to tear down the device to access UART. Second, you will need a soldering iron with thin tip and some good flux, _and_ skills to use them. Third, most Mediatek devices have UART pins exposed on the motherboard, however identifying them might not be the easiest task. I will go through some ways to find UART pads, Fly IQ430 (MT6577) will be used as an example.
