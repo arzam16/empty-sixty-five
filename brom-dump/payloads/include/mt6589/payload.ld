@@ -5,7 +5,7 @@ ENTRY(_init)
 
 MEMORY
 {
-	DA_RAM (IWX) : ORIGIN = 0x120226d4, LENGTH = 0x200
+	DA_RAM (IWX) : ORIGIN = 0x120226d4, LENGTH = 0x800
 }
 
 SECTIONS
@@ -15,31 +15,31 @@ SECTIONS
 		*(.text.init);
 		*(.text*);
 	}
-	
+
 	.rodata :
 	{
 		*(.rodata);
 		*(.rodata.*);
 		*(.gnu.linkonce.r.*);
 	}
-	
-	.data : 
+
+	.data :
 	{
 		*(.data);
 		*(.data.*);
 		*(.gnu.linkonce.d.*);
 	}
-	
+
 	.bss :
 	{
-		
+
 		*(.bss);
 		*(.bss.*);
 		*(.gnu.linkonce.b.*);
-		
+
 		*(COMMON);
 	}
-	
+
 	.fill :
 	{
 		FILL(0);

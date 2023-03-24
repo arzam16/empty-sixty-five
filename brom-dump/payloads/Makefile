@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Unlicense
 
 CROSS_COMPILE ?= arm-none-eabi-
+CC				= $(CROSS_COMPILE)gcc
 AS				= $(CROSS_COMPILE)as
 LD				= $(CROSS_COMPILE)ld
-OBJCOPY 		= $(CROSS_COMPILE)objcopy
-ASFLAGS			= -mthumb -march=armv7 -mcpu=cortex-a7 -I include/$(TARGET)
+OBJCOPY			= $(CROSS_COMPILE)objcopy
+CFLAGS			= -c -O0 -nodefaultlibs -nostdlib -marm $(TARGET_FLAGS) -I include/
+ASFLAGS			= $(TARGET_FLAGS)
 LDFLAGS			= -T $(TARGET_LD_SCRIPT)
 
 # Root directory for build files
@@ -20,8 +22,13 @@ ALL_TARGETS = mt6589
 TARGET ?= unsupported
 TARGET_LD_SCRIPT = include/$(TARGET)/payload.ld
 TARGET_INIT = $(OUT_DIR)/$(TARGET)-init.o
+
+# Flags for individual targets
+TARGET_FLAGS = $($(TARGET)_FLAGS) -I include/$(TARGET)
+mt6589_FLAGS = -mcpu=cortex-a7
+
 # Available payloads
-PAYLOADS = hello-world-uart-da-api usb-dump
+PAYLOADS = hello-world-uart usb-dump
 
 PAYLOAD_BINS = $(patsubst %,$(BUILD_DIR)/$(TARGET)-%-payload.bin,$(PAYLOADS))
 TARGET_DA_PATCHED = $(OUT_DIR)/$(TARGET)-da-patched.bin
@@ -47,11 +54,11 @@ clean:
 $(TARGET_INIT): init.s
 	$(AS) $(ASFLAGS) -o "$@" "$<"
 
-$(OUT_DIR)/$(TARGET)-hello-world-uart-da-api-piggyback.o: hello-world-uart-da-api.s | $(OUT_DIR)
-	$(AS) $(ASFLAGS) -o "$@" "$<"
+$(OUT_DIR)/$(TARGET)-hello-world-uart-piggyback.o: hello-world-uart.c | $(OUT_DIR)
+	$(CC) $(CFLAGS) -o "$@" "$<"
 
-$(OUT_DIR)/$(TARGET)-usb-dump-piggyback.o: usb-dump.s | $(OUT_DIR)
-	$(AS) $(ASFLAGS) -o "$@" "$<"
+$(OUT_DIR)/$(TARGET)-usb-dump-piggyback.o: usb-dump.c | $(OUT_DIR)
+	$(CC) $(CFLAGS) -o "$@" "$<"
 
 %-piggyback.elf: %-piggyback.o $(TARGET_INIT) | $(OUT_DIR)
 	$(LD) $(LDFLAGS) -o "$@" $^
@@ -80,10 +87,10 @@ $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 # After patch:
 # ======================================================================
 # 12000cd6 ff f7 cc ff     bl         FUN_12000c72
-# 12000cda 21 f0 fb bc     bl         FUN_120226d4
+# 12000cda 21 f0 fc ec     blx        FUN_120226d4
 $(OUT_DIR)/mt6589-da-patched.bin: $(AUX_DIR)/mt6589-da-original.bin | $(OUT_DIR) $(AUX_DIR)
 	xxd -c 256 -p "$<" |\
-		sed -e "s/fff7ccff60688047/fff7ccff21f0fbfc/" |\
+		sed -e "s/fff7ccff60688047/fff7ccff21f0fcec/" |\
 		xxd -p -r > "$@"
 
 $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip: | $(AUX_DIR)

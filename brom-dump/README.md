@@ -195,7 +195,7 @@ Instead, I created a `0x3c` bytes long uninitialized RW memory region at `0x1021
 15. `(off + 0x38)` Set transport baudrate (ignored for USB)
 
 ## The usb-dump payload
-After pointing out all the I/O functions I took their addresses and implemented a rather simple `usb-dump` payload that will dump hardcoded set of regions using newly found functions in DA. I chose to dump not only the BootROM but also whole SRAM and the DA itself as it now has many variables initialized. Could be useful for further reverse engineering.
+After pointing out all the I/O functions I took their addresses and implemented a rather simple `usb-dump` payload in assembly that will dump hardcoded set of regions using newly found functions in DA. I chose to dump not only the BootROM but also whole SRAM and the DA itself as it now has many variables initialized. Could be useful for further reverse engineering.
 
 In `spft-replay` I implemented the "receive mode" to save dumped regions to disk. There's also "greedy mode" I made mainly for debugging.
 
@@ -213,4 +213,10 @@ In `spft-replay` I implemented the "receive mode" to save dumped regions to disk
 [2023-03-25 02:19:22,486] <INFO> Closing device
 ```
 
-Success! Now I've got the dump of mt6589 BROM. I have a few more devices to play with. The next will be mt6573.
+Success! Now I've got the dump of mt6589 BROM, SRAM and DA.
+
+Assembly is cool but when it comes to supporting more SoCs with different core types it gets much harder to maintain code. Considering this I took the following measures:
+1. Rewrote 2 existing payloads in C. They will compile in A32 mode without optimizations and GCC will take care of calling DA APIs which are mostly T32.
+2. Built init code as A32.
+3. Changed DA patch from using `BL` instruction to `BLX`.
+4. Bumped piggyback size to 0x800 bytes. This is 4 times more than the original but should be enough for whatever GCC outputs.
