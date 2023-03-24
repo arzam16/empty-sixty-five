@@ -6,7 +6,7 @@ import argparse
 import logging
 from functools import partial, partialmethod
 
-from src.common import as_0x
+from src.common import as_0x, as_hex, from_bytes
 from src.device import Device
 from src.replay import replay
 
@@ -40,6 +40,20 @@ to implement crashing Preloader for old platforms.
         const=LOG_LEVEL_BROM_IO,
         help="Super verbose: also print all read/write operations",
     )
+    mode_parser = parser.add_mutually_exclusive_group()
+    mode_parser.add_argument(
+        "-r",
+        dest="mode_receive",
+        action="store_true",
+        help="Receive mode: wait for >Mtk and <Mtk magics and save data to files",
+    )
+    mode_parser.add_argument(
+        "-g",
+        dest="mode_greedy",
+        action="store_true",
+        help="Greedy mode: receive and print all data after jumping to "
+        "payload (4 bytes at a time)",
+    )
     args = parser.parse_args()
 
     init_logging(args)
@@ -61,6 +75,11 @@ to implement crashing Preloader for old platforms.
     except:
         # Don't exit, try to close the device
         logging.critical("Replay error!", exc_info=True)
+
+    if args.mode_greedy:
+        handle_greedy(device)
+    elif args.mode_receive:
+        handle_receive(device)
 
     logging.info("Closing device")
     device.close()
@@ -88,6 +107,49 @@ def init_logging(args):
     logging.basicConfig(
         level=log_level, format="[%(asctime)s] <%(levelname)s> %(message)s"
     )
+
+
+def handle_greedy(device):
+    logging.info("Greedy mode! Waiting for incoming data... :)")
+    logging.info("Hit Ctrl+C to stop waiting")
+    try:
+        data = None
+        while True:
+            data = device.read(4)
+            if not data:
+                logging.error("Cannot receive data!")
+                break
+            logging.info(f"<- DA: {as_hex(data)}")
+    except KeyboardInterrupt:
+        logging.info("Stopped reading")
+
+
+def handle_receive(device):
+    logging.info("Waiting for custom payload response")
+
+    # This function is prone to errors.
+    # TODO: add more try-except!
+
+    seq = from_bytes(device.read(4), 4)
+    if seq == 0x3E4D746B:  # >Mtk
+        logging.info("Received HELLO sequence")
+    else:
+        logging.info(f"Received invalid data {as_hex(seq)}, expected HELLO sequence")
+
+    idx = 1
+    size = from_bytes(device.read(4), 4)
+    while size != 0x4D746B3C:  # <Mtk
+        logging.info(f"Reading {size} bytes")
+        data = device.read(size)
+        filename = f"dump-{idx}.bin"
+        with open(filename, "wb") as fos:
+            fos.write(data)
+        logging.info(f"Saved to {filename}")
+
+        idx += 1
+        size = from_bytes(device.read(4), 4)
+
+    logging.info("Received GOODBYE sequence")
 
 
 if __name__ == "__main__":

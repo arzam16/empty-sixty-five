@@ -21,7 +21,7 @@ TARGET ?= unsupported
 TARGET_LD_SCRIPT = include/$(TARGET)/payload.ld
 TARGET_INIT = $(OUT_DIR)/$(TARGET)-init.o
 # Available payloads
-PAYLOADS = hello-world-uart-da-api
+PAYLOADS = hello-world-uart-da-api usb-dump
 
 PAYLOAD_BINS = $(patsubst %,$(BUILD_DIR)/$(TARGET)-%-payload.bin,$(PAYLOADS))
 TARGET_DA_PATCHED = $(OUT_DIR)/$(TARGET)-da-patched.bin
@@ -48,6 +48,9 @@ $(TARGET_INIT): init.s
 	$(AS) $(ASFLAGS) -o "$@" "$<"
 
 $(OUT_DIR)/$(TARGET)-hello-world-uart-da-api-piggyback.o: hello-world-uart-da-api.s | $(OUT_DIR)
+	$(AS) $(ASFLAGS) -o "$@" "$<"
+
+$(OUT_DIR)/$(TARGET)-usb-dump-piggyback.o: usb-dump.s | $(OUT_DIR)
 	$(AS) $(ASFLAGS) -o "$@" "$<"
 
 %-piggyback.elf: %-piggyback.o $(TARGET_INIT) | $(OUT_DIR)

@@ -9,6 +9,8 @@
    * [Reverse engineering the Download Agent](#reverse-engineering-the-download-agent)
    * [Patching Download Agent](#patching-download-agent)
    * [Hello, world!](#hello-world)
+   * [Figuring out I/O API](#figuring-out-io-api)
+   * [The usb-dump payload](#the-usb-dump-payload)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -16,7 +18,7 @@ Initially this part was meant to be more of a blog post than a clear and concise
 
 Dumping BootROM on modern Mediatek family (mt67xx) SoCs is quite a trivial task because we have [mtkclient](https://github.com/bkerler/mtkclient) that works in nearly automatic mode.
 
-For slightly older devices we can always rely on modified generic payloads from the [bypass_payloads](https://github.com/chaosmaster/bypass_payloads) repository. 
+For slightly older devices we can always rely on modified generic payloads from the [bypass_payloads](https://github.com/chaosmaster/bypass_payloads) repository.
 
 However, for some reason even properly coded generic UART dump payload has never worked for me on mt6589. It felt like some hardware was either not initialized at all or initialized in some wrong way. Judging by Github commits no one has publicly shared mt6589 BROM dump at the time I started working on it so I decided to take a deeper look into what could I do.
 
@@ -34,7 +36,7 @@ My idea is to obtain the original DA for my SoC and make it execute my code righ
 
 I started by searching the oldest available SP Flash Tool build for Linux that still supported mt6589. By the time first Linux support was added to SPFT its developers already started dropping code for older platforms. For example, mt6575 and mt6577 were among the first to get their support removed from SPFT though their DAs remained in a few later versions of `MTK_AllInOne_DA.bin`. The first search result led me to the [download page at spflashtool.com](https://spflashtool.com/download/) where I got the archive with the Linux variant of SP Flash Tool v5.1648. Worth mentioning the website is tricky because it doesn't want us to access archives via direct links. Instead, it runs a script to add an event listener that appends a special request header on clicking the link. If you access the direct link without this header you will get redirected to the main page.
 
-By the way, the Linux version is more useful than the Windows one because the `libflashtoolEx.so` has debug symbols unlike its Windows counterpart :) 
+By the way, the Linux version is more useful than the Windows one because the `libflashtoolEx.so` has debug symbols unlike its Windows counterpart :)
 
 ```
 libflashtoolEx.so: ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, BuildID[sha1]=b570d3c0871606769140884647696f12d864c9b7, with debug_info, not stripped
@@ -156,3 +158,59 @@ spft-replay.py "mt6589-hello-world-uart-da-api-payload.bin"
 ![Hello world payload output](../images/brom-dump-009.png)
 
 Success! My next step is to implement proper code for dumping BROM.
+
+## Figuring out I/O API
+*I'm sure there's much better way to do things I'm about to do but I lack experience. If you are experienced in Ghidra get ready to cringe.*
+
+Previously I found some calls in `FUN_12000ccc` for USB I/O operations.  They are referenced to as an offset to an address stored in `DAT_12000ef8`.
+
+The address is `0x00102114`. In *MT6589 HSPA+ Smpartphone Application Processor datasheet / Version: 1.0 / Release date: 2012-12-11* on page 44 we can see the `0x0010_0000 - 0x0010_FFFF` region belongs to On-Chip SRAM.
+
+![DAT_00102114](../images/brom-dump-010.png)
+
+This pointer has only 6 references and jumping to the first one in the list reveals a function (`FUN_12000b4a`, later renamed to `setup_io_ops`) that seems to setup a variety of function pointers depending on the value of `param_1` (renamed to `io_type`). It's clear to me that `io_type` indicates either UART or USB because DA has no other way to communicate with PC.
+
+For me it seems like `puVar1` in the decompiler window means usage of a struct to store said I/O function pointers. I renamed `PTR_DAT_12000ef8` to `ptr_io_ops`. Each branch of `if` statement sets 15 different pointers relative to `ptr_io_iops`.
+
+I created a 60-byte struct called `io_ops_s` but it looks like I made a mistake somewhere because changing the type of `puVar1` from `undefined *` to `io_ops_s *` does nothing but prints some bullshit warning atop of the function in decompiler window:
+
+![WARNING: Unable to use type for symbol puVar1](../images/brom-dump-011.png)
+
+Instead, I created a `0x3c` bytes long uninitialized RW memory region at `0x102114` and set its type to `io_ops_s`. This makes it much easier to inspect usages of each pointer. It took me some time to figure out what each function in `io_ops_s` does, here's a very brief rundown:
+
+1. `(off)` Init transport HW. Is used only in `FUN_12000bdc` (renamed to `init_io`).
+2. `(off + 0x4)` Read 1 byte and return it
+3. `(off + 0x8)` Read 1 byte into a buffer
+4. `(off + 0xC)` Read N bytes `read(char* dst, uint len)`
+5. `(off + 0x10)` Write 1 byte
+6. `(off + 0x14)` Write N bytes `write(char* data, uint len)`
+7. `(off + 0x18)` Write 1 byte but unused..?
+8. `(off + 0x1C)` Read 2 bytes
+9. `(off + 0x20)` Write 2 bytes
+10. `(off + 0x24)` Read 4 bytes
+11. `(off + 0x28)` Write 4 bytes
+12. `(off + 0x2C)` Read 8 bytes
+13. `(off + 0x30)` Write 8 bytes
+14. `(off + 0x34)` Activate transport features (ignored for USB)
+15. `(off + 0x38)` Set transport baudrate (ignored for USB)
+
+## The usb-dump payload
+After pointing out all the I/O functions I took their addresses and implemented a rather simple `usb-dump` payload that will dump hardcoded set of regions using newly found functions in DA. I chose to dump not only the BootROM but also whole SRAM and the DA itself as it now has many variables initialized. Could be useful for further reverse engineering.
+
+In `spft-replay` I implemented the "receive mode" to save dumped regions to disk. There's also "greedy mode" I made mainly for debugging.
+
+```
+[2023-03-25 02:19:01,737] <REPLAY> -> DA: (OK) 5A
+[2023-03-25 02:19:01,740] <INFO> Waiting for custom payload response
+[2023-03-25 02:19:01,743] <INFO> Received HELLO sequence
+[2023-03-25 02:19:01,749] <INFO> Reading 65536 bytes
+[2023-03-25 02:19:05,216] <INFO> Saved to dump-1.bin
+[2023-03-25 02:19:05,225] <INFO> Reading 65536 bytes
+[2023-03-25 02:19:08,704] <INFO> Saved to dump-2.bin
+[2023-03-25 02:19:08,715] <INFO> Reading 262144 bytes
+[2023-03-25 02:19:22,479] <INFO> Saved to dump-3.bin
+[2023-03-25 02:19:22,485] <INFO> Received GOODBYE sequence
+[2023-03-25 02:19:22,486] <INFO> Closing device
+```
+
+Success! Now I've got the dump of mt6589 BROM. I have a few more devices to play with. The next will be mt6573.
