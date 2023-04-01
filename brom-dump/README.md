@@ -13,6 +13,8 @@
    * [The usb-dump payload](#the-usb-dump-payload)
 * [Dumping mt6573 BROM](#dumping-mt6573-brom)
    * [SP Flash Tool issues](#sp-flash-tool-issues)
+   * [UART issues](#uart-issues)
+   * [reset_uart_and_log](#reset_uart_and_log)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -255,3 +257,36 @@ I set up Wireshark and USBPcap and shortly after got the traffic dump I was look
 Adding support for mt6573 in payloads was just a matter of finding some function addresses in its original DA and putting them into header files, as well as adding a new target to Makefile. 
 
 Unfortunately, things didn't go as well as expected. Despite USB dump payload working properly the "Hello world" payload doesn't print anything at all. I will fix it next.
+
+## UART issues
+When I run the readback flow in the original SP Flash Tool I *do* see the UART logs:
+
+```
+Output Log To Uart 4
+InitLog: 10:53:14 61440000 [MT6573]
+Page size in device is 2048
+[RS] (9001B234: 4DC8)
+[LIB] Security PreProcess : 16:08:11, Nov  9 2016
+[LIB] Flash Detect Results : (0x0, 0xC4D, 0xC4F)
+[LIB] Search NAND
+[LIB] ROM_INFO not found in NAND
+...
+(snip)
+```
+
+The first line printed after `init_log` is called is `Page size in device is 2048` and it's printed in `FUN_9000b0ee` (renamed to `request_storage_settings`). This function seems to request NAND init parameters (56 bytes) from SPFT in a loop (response is `0x69` to try the next param) until suitable ones are detected (response is `0x5A`). The parent function seems to perform some kind of storage initialization, I renamed this function to `init_storage`.
+
+I returned to the `init_log` function and noticed it has 2 references. I generated a graph:
+
+![init_log call graph](../images/brom-dump-015.png)
+
+Turns out I was really close because `init_storage` calls something that invokes `init_log` just before requesting NAND init params and printing the `Page size in device is 2048` line. 
+
+## reset_uart_and_log
+After inspecting this function (`FUN_90009e64`, renamed to `reset_uart_and_log`) and its outgoing calls it became clear that on mt6573 the first `init_log` call is kinda ignored and printing stuff to UART won't work until `reset_uart_and_log` is called by `init_storage`.
+
+Now I just need to add this call to my `hello-world-uart` payload and it should work. Aaand...
+
+![mt6573 hello-world-uart payload output](../images/brom-dump-016.png)
+
+... *ta-da!* The introduced call doesn't seem to harm the mt6589 variant of payload so I decided to not guard it with `#ifdef TARGET_MT6573` but kept the appropriate Makefile change for setting a `TARGET_MTxxxx` for future.

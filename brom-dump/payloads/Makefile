@@ -5,8 +5,8 @@ CC				= $(CROSS_COMPILE)gcc
 AS				= $(CROSS_COMPILE)as
 LD				= $(CROSS_COMPILE)ld
 OBJCOPY			= $(CROSS_COMPILE)objcopy
-CFLAGS			= -c -O0 -nodefaultlibs -nostdlib -marm $(TARGET_FLAGS) -I include/
-ASFLAGS			= $(TARGET_FLAGS)
+CFLAGS			= -c -O0 -nodefaultlibs -nostdlib -marm $(TARGET_FLAGS) -D$(TARGET_DEF) -I include/
+ASFLAGS			= $(TARGET_FLAGS) --defsym $(TARGET_DEF)=1
 LDFLAGS			= -T $(TARGET_LD_SCRIPT)
 
 # Root directory for build files
@@ -20,6 +20,8 @@ OUT_DIR = $(BUILD_DIR)/out
 ALL_TARGETS = mt6573 mt6589
 # This has to be set manually
 TARGET ?= unsupported
+# Pass `#define TARGET_MTxxxx 1` to compiler
+TARGET_DEF = TARGET_$(subst mt,MT,$(TARGET))
 # Linker script for target
 TARGET_LD_SCRIPT = include/$(TARGET)/payload.ld
 # Target-specific init module

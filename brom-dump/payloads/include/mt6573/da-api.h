@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+void (*DA_reset_uart_and_log)() =
+	( void (*)() )
+	(0x90009E64 + 1);
+
 void (*DA_putc_wrapper_uart)(uint8_t) =
 	( void (*)(uint8_t) )
 	(0x90007AFE + 1);
@@ -12,8 +16,6 @@ void (*DA_print_hex_value)(uint32_t, uint32_t) =
 void (*DA_printf_uart)(uint8_t*, uint32_t, uint32_t, uint32_t) =
 	( void (*)(uint8_t*, uint32_t, uint32_t, uint32_t) )
 	(0x90007B42 + 1);
-
-
 
 void (*DA_io_usb_write)(uint8_t*, uint32_t) =
 	( void (*)(uint8_t*, uint32_t) )

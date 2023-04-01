@@ -7,6 +7,8 @@
 #include "hw-api.h"
 
 void main() {
+	DA_reset_uart_and_log();
+
 	uint32_t chip_id = *(uint32_t*)HW_reg_chip_id;
 	DA_printf_uart("\n\n\nHello from mt%x!\n", chip_id, 0, 0);
 
