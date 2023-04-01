@@ -69,6 +69,11 @@ $(OUT_DIR)/$(TARGET)-usb-dump-piggyback.o: usb-dump.c | $(OUT_DIR)
 $(BUILD_DIR)/$(TARGET)-%-payload.bin: $(TARGET_DA_PATCHED) $(OUT_DIR)/$(TARGET)-%-piggyback.bin | $(BUILD_DIR) $(OUT_DIR)
 	cat $^ > "$@"
 
+$(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
+	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
+		tail -c +14813 | head -c 90932 \
+		> "$@"
+
 $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
 	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
 		tail -c +767137 | head -c 141012 \

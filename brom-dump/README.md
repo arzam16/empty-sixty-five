@@ -11,6 +11,8 @@
    * [Hello, world!](#hello-world)
    * [Figuring out I/O API](#figuring-out-io-api)
    * [The usb-dump payload](#the-usb-dump-payload)
+* [Dumping mt6573 BROM](#dumping-mt6573-brom)
+   * [SP Flash Tool issues](#sp-flash-tool-issues)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -220,3 +222,32 @@ Assembly is cool but when it comes to supporting more SoCs with different core t
 2. Built init code as A32.
 3. Changed DA patch from using `BL` instruction to `BLX`.
 4. Bumped piggyback size to 0x800 bytes. This is 4 times more than the original but should be enough for whatever GCC outputs.
+
+# Dumping mt6573 BROM
+
+This SoC has ARM1176JZF-S core and if I wanted to keep writing in assembly I would definitely have had some issues regarding code compatibility. Having stuff written in C makes it GCC's headache, not mine.
+
+My workflow to add mt6573 support will be similar to mt6589:
+1. Capture SP Flash Tool traffic
+2. Carve out the original DA
+3. Teach `spft-replay` the traffic of mt6573
+4. Patch original DA to make it jump to my code
+5. ...
+6. PROFIT!!!
+
+## SP Flash Tool issues
+My mt6573 device is old. Its on-board storage is NAND, not EMMC. Same version of SP Flash Tool I used for mt6589 successfully consumed a scatter for NAND but refused to do anything immediately after pushing DA. Looks like this version of software doesn't support NAND.
+
+![NAND complaints from SP Flash Tool](../images/brom-dump-012.png)
+
+I know SP Flash Tool for long enough to understand what kinds of bullshit can it generate. For example, having such an ouroboros is totally possible:
+
+![SP Flash Tool trying to handle mt6573](../images/brom-dump-013.png)
+
+The `MTK_AllInOne_DA.bin` found in the Linux distribution of SP Flash Tool v5.1648 **does** support mt6573:
+
+![mt6573 DA in MTK_AllInOne_DA.bin from SPFT v5.1648](../images/brom-dump-014.png)
+
+Looks like the NAND support depends on host SPFT application, not on DA itself. I started my Windows computer (the only reason for this is there are more archive versions for Windows than for Linux) and began testing SP Flash Tool distributions older than v5.1648 but I shoved them the DA from v5.1648. It took me some time to figure out that the latest version of SP Flash Tool for Windows that supports mt6573 with NAND is v5.1624.
+
+I set up Wireshark and USBPcap and shortly after got the traffic dump I was looking for. The dumped traffic allowed me to carve out the original DA for mt6573 and implement support for this SoC in `spft-replay`.

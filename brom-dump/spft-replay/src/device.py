@@ -473,3 +473,24 @@ class Device:
                 f"to {as_hex(new_value, 2)}, "
                 f"got {as_hex(pwr, 2)}"
             )
+
+    # Inspired by mt6573 Wireshark dump
+    def write16_verify(self, register, new_value, reference_value):
+        # reference_value - a value obtained from the Wireshark dump of my device
+        old_value = self.read16(register)
+        if old_value != reference_value:
+            logging.warning(
+                f"Read {as_0x(register)}, "
+                f"got {as_hex(old_value, size=2)} but "
+                f"reference is {as_hex(reference_value, size=2)}"
+            )
+
+        self.write16(register, new_value)
+
+        check = self.read16(register)
+        if check != new_value:
+            logging.warning(
+                f"Set {as_0x(register)} "
+                f"to {as_hex(new_value, size=2)} but "
+                f"it is {as_hex(check, size=2)}"
+            )
