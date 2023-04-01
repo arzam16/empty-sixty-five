@@ -17,15 +17,18 @@ AUX_DIR = $(BUILD_DIR)/aux
 OUT_DIR = $(BUILD_DIR)/out
 
 # Supported devices
-ALL_TARGETS = mt6589
+ALL_TARGETS = mt6573 mt6589
 # This has to be set manually
 TARGET ?= unsupported
+# Linker script for target
 TARGET_LD_SCRIPT = include/$(TARGET)/payload.ld
+# Target-specific init module
 TARGET_INIT = $(OUT_DIR)/$(TARGET)-init.o
 
 # Flags for individual targets
-TARGET_FLAGS = $($(TARGET)_FLAGS) -I include/$(TARGET)
-mt6589_FLAGS = -mcpu=cortex-a7
+TARGET_FLAGS = $($(subst mt,MT,$(TARGET))_FLAGS) -I include/$(TARGET)
+MT6573_FLAGS = -mcpu=arm1176jzf-s
+MT6589_FLAGS = -mcpu=cortex-a7
 
 # Available payloads
 PAYLOADS = hello-world-uart usb-dump
@@ -35,7 +38,7 @@ TARGET_DA_PATCHED = $(OUT_DIR)/$(TARGET)-da-patched.bin
 
 CHECKSUM_SPFT_V5_1648_LINUX := "9c9c57405ee35044e41d7958cfbd01232107101ec5cec03539d33438cbe38b4b"
 
-.PHONY: all target clean
+.PHONY: all target print-targets clean
 
 all: target $(PAYLOAD_BINS)
 
@@ -43,6 +46,9 @@ target:
 ifeq ($(TARGET),unsupported)
 	$(error "TARGET is not defined, supported values: $(ALL_TARGETS)")
 endif
+
+print-targets:
+	@echo $(ALL_TARGETS)
 
 clean:
 	rm -vf $(AUX_DIR)/*-da-original.bin
@@ -74,14 +80,32 @@ $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 		tail -c +14813 | head -c 90932 \
 		> "$@"
 
+# Patch the internal memory initialization routine to jump to our payload
+# before Download Agent starts waiting for more data from SP Flash Tool.
+#
+# Before patch:
+# ======================================================================
+# 90005bd4 00 78           ldrb       r0,[r0,#0x0]
+# 90005bd6 88 47           blx        r1
+# 90005bd8 e8 68           ldr        r0,[r5,#0xc]=>DAT_40007edc
+# 90005bda 00 78           ldrb       r0,[r0,#0x0]
+#
+#
+# After patch:
+# ======================================================================
+# 90005bd4 00 78           ldrb       r0,[r0,#0x0]
+# 90005bd6 88 47           blx        r1
+# 90005bd8 15 f0 ac eb     blx        FUN_9001b334
+$(OUT_DIR)/mt6573-da-patched.bin: $(AUX_DIR)/mt6573-da-original.bin | $(OUT_DIR) $(AUX_DIR)
+	xxd -c 256 -p "$<" |\
+		sed -e "s/00788847e8680078/0078884715f0aceb/" |\
+		xxd -p -r > "$@"
+
 $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
 	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
 		tail -c +767137 | head -c 141012 \
 		> "$@"
 
-# Patch the internal memory initialization routine to jump to our payload
-# before Download Agent starts waiting for more data from SP Flash Tool.
-#
 # Before patch:
 # ======================================================================
 # 12000cd6 ff f7 cc ff     bl         FUN_12000c72
