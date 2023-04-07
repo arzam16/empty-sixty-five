@@ -120,13 +120,13 @@ def replay_mt6589(dev, payload):
 
     logging.replay("Setting up PMIC")
     dev.power_init(0x80000000, 0)
-    val = dev.power_read16(0x000E)
-    dev.set_power_reg(0x000E, 0x1001, 0x1001)
-    dev.set_power_reg(0x000C, 0x0049, 0x0041)
-    dev.set_power_reg(0x0008, 0x000C, 0x000F)
-    dev.set_power_reg(0x001A, 0x0000, 0x0010)
-    dev.set_power_reg(0x0000, 0x007B, 0x0063)
-    dev.set_power_reg(0x0020, 0x0009, 0x0001)
+    val = dev.power_read16(0x000E)  # CHR_CON7
+    dev.set_power_reg(0x000E, 0x1001, 0x1001)  # CHR_CON7
+    dev.set_power_reg(0x000C, 0x0049, 0x0041)  # CHR_CON6
+    dev.set_power_reg(0x0008, 0x000C, 0x000F)  # CHR_CON4
+    dev.set_power_reg(0x001A, 0x0000, 0x0010)  # CHR_CON13
+    dev.set_power_reg(0x0000, 0x007B, 0x0063)  # CHR_CON0
+    dev.set_power_reg(0x0020, 0x0009, 0x0001)  # CHR_CON16
     dev.power_deinit()
 
     # Disable watchdog timer and dump Reset Generator Unit registers
