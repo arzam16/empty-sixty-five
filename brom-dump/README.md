@@ -21,6 +21,7 @@
    * [Decoding LDR instruction bytes](#decoding-ldr-instruction-bytes)
    * [Fixing and defining the usbdl_put_data](#fixing-and-defining-the-usbdl_put_data)
    * [Sending the data](#sending-the-data)
+* [chaosmaster's generic_uart_dump](#chaosmasters-generic_uart_dump)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -491,3 +492,14 @@ while (1) {
 
 }
 ```
+
+# chaosmaster's generic_uart_dump
+Running this payload allows dumping memory without relying on location of I/O functions table in BROM. Mediatek SoCs use the same HW IP for UART and usually only the base register addresses differ. It's easy obtain them by analyzing the kernel source code or reading a datasheet.
+
+`uart_base` should of the UART used by BROM (usually UART1) to avoid using uninitialized ports.
+
+This payload reads the specified memory region byte-by-byte and prints each byte in HEX-encoded form using the `low_uart_put` function.
+
+`uart_reg0` is a status register and the `while` loop is here to wait until the 5th bit (`0x20`) is set which means the FIFO buffer is ready to accept new data.
+
+Once the wait cycle is complete the byte is written to the `uart_reg1` register.
