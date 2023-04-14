@@ -15,6 +15,12 @@
    * [SP Flash Tool issues](#sp-flash-tool-issues)
    * [UART issues](#uart-issues)
    * [reset_uart_and_log](#reset_uart_and_log)
+* [chaosmaster's generic_dump](#chaosmasters-generic_dump)
+   * [Function prologue](#function-prologue)
+   * [LDR instruction](#ldr-instruction)
+   * [Decoding LDR instruction bytes](#decoding-ldr-instruction-bytes)
+   * [Fixing and defining the usbdl_put_data](#fixing-and-defining-the-usbdl_put_data)
+   * [Sending the data](#sending-the-data)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -254,7 +260,7 @@ Looks like the NAND support depends on host SPFT application, not on DA itself. 
 
 I set up Wireshark and USBPcap and shortly after got the traffic dump I was looking for. The dumped traffic allowed me to carve out the original DA for mt6573 and implement support for this SoC in `spft-replay`.
 
-Adding support for mt6573 in payloads was just a matter of finding some function addresses in its original DA and putting them into header files, as well as adding a new target to Makefile. 
+Adding support for mt6573 in payloads was just a matter of finding some function addresses in its original DA and putting them into header files, as well as adding a new target to Makefile.
 
 Unfortunately, things didn't go as well as expected. Despite USB dump payload working properly the "Hello world" payload doesn't print anything at all. I will fix it next.
 
@@ -280,7 +286,7 @@ I returned to the `init_log` function and noticed it has 2 references. I generat
 
 ![init_log call graph](../images/brom-dump-015.png)
 
-Turns out I was really close because `init_storage` calls something that invokes `init_log` just before requesting NAND init params and printing the `Page size in device is 2048` line. 
+Turns out I was really close because `init_storage` calls something that invokes `init_log` just before requesting NAND init params and printing the `Page size in device is 2048` line.
 
 ## reset_uart_and_log
 After inspecting this function (`FUN_90009e64`, renamed to `reset_uart_and_log`) and its outgoing calls it became clear that on mt6573 the first `init_log` call is kinda ignored and printing stuff to UART won't work until `reset_uart_and_log` is called by `init_storage`.
@@ -290,3 +296,198 @@ Now I just need to add this call to my `hello-world-uart` payload and it should 
 ![mt6573 hello-world-uart payload output](../images/brom-dump-016.png)
 
 ... *ta-da!* The introduced call doesn't seem to harm the mt6589 variant of payload so I decided to not guard it with `#ifdef TARGET_MT6573` but kept the appropriate Makefile change for setting a `TARGET_MTxxxx` for future.
+
+# chaosmaster's generic_dump
+The `generic_dump` payload found in the [bypass_payloads](https://github.com/chaosmaster/bypass_payloads/blob/master/generic_dump.c) is quite an interesting solution worth explaining.
+
+Not only it's a small and effective payload but it also has on-the-fly disassembly technique implemented.
+
+The idea of this payload is to derive a pointer to the table of I/O functions similar to [those described above](#figuring-out-io-api) and use it to call `usbdl_put_data(uint32_t* src, uint32_t len)` providing the base address of the BROM and its size.
+
+To better illustrate what's really going on, I will use the BROM dump from [MT8382V](https://github.com/arzam16/SoC-BootROMs/blob/main/mediatek/mt8382v.bootrom.bin). This SoC shares the same registers with MT**65**82. I loaded this dump into Ghidra and set the base address to 0x0:
+
+![Memory map of mt6582](../images/brom-dump-017.png)
+
+## Function prologue
+Various families of Mediatek SoCs have different locations of BROM. This code scans predefined set of supposed addresses ( `uint32_t brom_bases[]` ) for a first address that has specific pattern defined in `uint16_t search_pattern[]`.
+
+```
+__attribute__ ((section(".text.main"))) int main() {
+	send_word = 0;
+	uint32_t i = 0;
+	for (i = 0; i < (sizeof(brom_bases) / sizeof(*brom_bases)); ++i) {
+		send_word = (void *)searchfunc(brom_bases[i] + 0x100, brom_bases[i] + 0x10000, search_pattern, 4);
+		if (send_word) break;
+	}
+```
+
+This pattern is a *function prologue* - a small routine put by the compiler in the beginning of the function. In our case it saves values of registers to stack.
+
+It's very important to understand the function prologues **do** differ, it's just a really good coincidence this one is found in majority of BROMs. But how do we dump the BROM if we don't know the exact byte pattern? In this case we can dump it over UART. It is not as convenient as USB dump but it should work on all Mediatek devices. More on this in the next chapter.
+
+Since the searched function is supposed to be in Thumb mode, we scan 16-bit sequences instead of 32-bit. The function prologue defined in `search_pattern[]` disassembles to this code:
+
+```
+2d e9 f8 4f     push       {r3,r4,r5,r6,r7,r8,r9,r10,r11,lr}
+80 46           mov        r8,r0
+8a 46           mov        r10,r1
+```
+
+Lets search this signature in Ghidra. In the source code the `search_pattern[]` values are big endian, we have to account for that. It's important to separate each 16-bit value with spaces otherwise Ghidra will treat it as a single huge number instead of a set of values.
+
+![Searching a function prologue in Ghidra](../images/brom-dump-018.png)
+
+In case of MT8382 BROM the search yielded 2 results but since the `searchfunc` returns the address of the first result the `send_word` variable is going to take the value of `0xA49E + 1 = 0xA49F`. 1 is added to properly indicate that function as Thumb code:
+
+```
+if (++matched == patternsize) return offset | 1;
+```
+
+![2 functions found](../images/brom-dump-019.png)
+
+Lets jump to the first search result, too.
+
+## LDR instruction
+If we look at the disassembly listing we will see the following:
+
+```
+0000a49e 2d e9 f8 4f     push       {r3,r4,r5,r6,r7,r8,r9,r10,r11,lr}
+0000a4a2 80 46           mov        r8,r0
+0000a4a4 8a 46           mov        r10,r1
+0000a4a6 55 48           ldr        r0,[DAT_0000a5fc]
+0000a4a8 87 68           ldr        r7,[r0,#0x8]=>DAT_001027c8
+0000a4aa c6 68           ldr        r6,[r0,#0xc]=>DAT_001027cc
+```
+
+The ARM processor has 12 general-purpose registers for storing data. They are somewhat similar to variables we see in programming languages.
+
+Lets focus on the `ldr` instructions:
+1. The first `ldr` instruction puts whatever value is stored at the address `0x0000a5fc` into register `r0`. This value is an address of the table of BROM I/O functions.
+2. The second `ldr` instruction takes a value at `r0`, adds `0x8` to it and loads a value from the resulting address into register `r7`.
+3. The third `ldr` instruction takes a value at `r0`, adds `0xc` to and and loads a value from the resulting address into register `r6`.
+
+In the decompiler window we can see the C-pseudocode equivalent of said instructions:
+
+```
+pcVar2 = *(code **)(DAT_0000a5fc + 8);
+pcVar1 = *(code **)(DAT_0000a5fc + 0xc);
+```
+
+## Decoding LDR instruction bytes
+In `generic_dump` there's following code. I reformatted it for better understanding
+
+```
+int (*(*usbdl_ptr))() = (void *)(
+	ldr_lit(
+		(uint32_t)send_word + 7,
+		((uint16_t*)(send_word + 7))[0],
+		0
+	)
+);
+```
+
+The `ldr_lit` function returns an absolute address referenced by the `ldr` instruction. It takes the address of an `ldr` instruction and its bytes. In our case the needed `ldr` instruction is stored at `prologue address + 7 = 0xA4A6`, and its bytes are `0x5548` as seen in Ghidra. The Ghidra representation of Hex is big-endian and we have to account for that. In fact the processor is little-endian and first reads `0x48` then `0x55`. The last argument is `0` and is not used.
+
+To understand what the code in `ldr_lit` function actually does we have to understand how said `LDR` instruction is encoded. Here's an excerpt from the [ARM7 TDMI Manual](https://web.archive.org/web/20221211173239/http://bear.ces.cwru.edu/eecs_382/ARM7-TDMI-manual-pt3.pdf), page 16:
+
+![Format of Thumb-encoded LDR instruction](../images/brom-dump-020.png)
+
+The first line in `ldr_lit` extracts the `imm8` part of the instruction. The actual value is 10 bit long but it's able to store it in an 8-bit because 2 bits are always zero as the target address must be aligned by 4 which means 0th and 1st bit are always zero. The `imm8` value in our case is `0x55`.
+
+```
+uint8_t imm8 = instr & 0xFF;
+```
+
+The next line extracts the ID of a register (0~12) and writes it to a variable. However in our case we don't need to know the exact destination register and this `if` branch is not executed.
+
+```
+if (Rt) *Rt = (instr >> 8) & 7;
+```
+
+The next line rounds the Program Counter register value *downwards* by 4. The `curpc` variable stores the address of our `ldr` instruction. In Thumb mode instructions can fit into 16-bytes but `ldr` wants 4-bytes alignment.
+
+```
+uint32_t pc = (((uint32_t)curpc) / 4 * 4);
+```
+
+an alternative way to do this would be:
+
+```
+uint32_t pc = curpc & ~0b11; // clear the first 2 bytes
+```
+
+As result, `pc` value is `0xA4A6 / 4 * 4 = 0xA4A4`.
+
+The next line does the following:
+1. First, it extends the `imm8` from 8 to 10 bytes by multiplying it by 4. It is the same thing as shifting it left by 2. The value in brackets is `(0x55 * 4) = (0x154)`.
+2. We add 4 because the manual says so: "*The value of the PC will be 4 bytes greater than the address of this instruction*".
+3. Everything is added up to form an address where the BROM I/O table pointer is stored at.
+
+```
+return (uint32_t *)(pc + (imm8 * 4) + 4);
+```
+
+As result, `ldr_lit` returns `(0xA4A4 + 0x154 + 4) = 0xA5FC`.
+
+`0xA5FC` is the address that holds an address (so, a pointer) to the BROM I/O table. We can check in Ghidra our calculations were correct:
+
+![0x0000a5fc address loaded in Ghidra](../images/brom-dump-021.png)
+
+When `ldr_lit` returns an address it is casted to an array of functions:
+
+```
+int (*(*usbdl_ptr))() = (void *)(ldr_lit(...));
+```
+
+## Fixing and defining the usbdl_put_data
+I must admit the MT8382 example is quite bad because the provided dump does not have a SRAM dump where the actual function table is located. In general, it lists pointers to various functions just like the Download Agent [does](#figuring-out-io-api) but just a little bit different. This BROM has the following table:
+1. `(off)` some USB function
+2. `(off + 0x4)` some USB function
+3. `(off + 0x8)` `write(char* data, uint len)`
+4. `(off + 0xC)` `flush()`
+5. `(off + 0x10)` some USB function
+6. `(off + 0x14)` some USB function
+
+The next line of code overwrites the I/O function table once to fix a pointer to the `write` function. It might be not all Mediatek BROMs need that fix, though.
+
+```
+//Fix ptr_send
+*(volatile uint32_t *)(usbdl_ptr[0] + 8) = (uint32_t)usbdl_ptr[2];
+```
+
+The part of code defines a C helper function called `usbdl_put_data` for sending arbitrary data to PC using the I/O functions. First the function calls the `write` function (`usbdl_ptr[2]` takes the 3rd function from the table) and then flushes the USB buffer, completing a transfer (`usbdl_ptr[3]` takes the 4th function from the table).
+
+```
+int usbdl_put_data(void* data, uint32_t size) {;
+	(usbdl_ptr[2])(data, size);
+	return (usbdl_ptr[3])();
+}
+```
+
+## Sending the data
+The following line defines a magic value with forced big-endianness:
+
+```
+int ack = __builtin_bswap32(0xC1C2C3C4);
+````
+
+If `__buildin_bswap32` wasn't used the PC would have received `0xC4C3C2C1` instead.
+
+The next line sends the magic value. This payload is meant to be used with [bypass_utility](https://github.com/MTK-bypass/bypass_utility) and the program *does* [expect this value](https://github.com/MTK-bypass/bypass_utility/blob/87a2541820ad22e7cc00d0bd51a3a8faff6c21ef/main.py#L110). Once the program receives `0xC1C2C3C4` it starts receiving `0x20000` bytes from USB and saving them to disk. The payload, in its turn, dumps the whole BootROM:
+
+```
+usbdl_put_data((void *)brom_bases[i], 0x20000);
+```
+
+The payload then attempts to shutdown the device by triggering the hardware watchdog and entering an infinite loop that will be interrupted when watchdog resets the device on timeout.
+
+```
+// Reboot device, so we still get feedback in case the above didn't work
+wdt[8/4] = 0x1971;
+wdt[0/4] = 0x22000014;
+wdt[0x14/4] = 0x1209;
+
+while (1) {
+
+}
+```
