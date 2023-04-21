@@ -95,7 +95,7 @@ def replay_mt6573(dev, payload):
         f"set to {as_hex(0x2)}, was {as_hex(val)}"
     )
 
-    val = dev.send_da(0x90005000, len(payload), 0x100, payload)
+    val = dev.send_da(0x90005000, len(payload), 0, payload)
     logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
 
     dev.jump_da(0x90005000)
@@ -154,7 +154,7 @@ def replay_mt6589(dev, payload):
         f"set to {as_hex(0x2)}, was {as_hex(val)}"
     )
 
-    val = dev.send_da(0x12000000, len(payload), 0x100, payload)
+    val = dev.send_da(0x12000000, len(payload), 0, payload)
     logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
 
     dev.uart1_log_enable()
