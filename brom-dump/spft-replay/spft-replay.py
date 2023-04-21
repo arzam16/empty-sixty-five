@@ -8,7 +8,7 @@ from functools import partial, partialmethod
 
 from src.common import as_0x, as_hex, from_bytes
 from src.device import Device
-from src.replay import replay
+from src.manager import DeviceManager
 
 LOG_LEVEL_REPLAY = logging.INFO + 1
 LOG_LEVEL_BROM_CMD = logging.INFO - 1
@@ -71,9 +71,13 @@ to implement crashing Preloader for old platforms.
 
     try:
         device.handshake()
-        replay(device, da)
     except:
-        # Don't exit, try to close the device
+        logging.critical("Handshake error!", exc_info=True)
+
+    manager = DeviceManager(device)
+    try:
+        manager.replay(da)
+    except:
         logging.critical("Replay error!", exc_info=True)
 
     if args.mode_greedy:
