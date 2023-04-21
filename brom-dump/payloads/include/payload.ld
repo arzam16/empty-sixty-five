@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* SPDX-FileCopyrightText: 2023 arzamas-16 <https://github.com/arzamas-16> */
 
-ENTRY(_init)
+/*
+* This LD script imitates an initialized .bss section by filling the
+* unused space with zeroes.
+*/
 
-MEMORY
-{
-	DA_RAM (IWX) : ORIGIN = 0x120226d4, LENGTH = 0x800
-}
+ENTRY(_init)
 
 SECTIONS
 {

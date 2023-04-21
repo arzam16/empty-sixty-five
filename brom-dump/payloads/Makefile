@@ -7,7 +7,7 @@ LD				= $(CROSS_COMPILE)ld
 OBJCOPY			= $(CROSS_COMPILE)objcopy
 CFLAGS			= -c -O0 -nodefaultlibs -nostdlib -marm $(TARGET_FLAGS) -D$(TARGET_DEF) -I include/
 ASFLAGS			= $(TARGET_FLAGS) --defsym $(TARGET_DEF)=1
-LDFLAGS			= -T $(TARGET_LD_SCRIPT)
+LDFLAGS			= -L include -T $(TARGET_LD_SCRIPT)
 
 # Root directory for build files
 BUILD_DIR = $(CURDIR)/build
@@ -23,7 +23,7 @@ TARGET ?= unsupported
 # Pass `#define TARGET_MTxxxx 1` to compiler
 TARGET_DEF = TARGET_$(subst mt,MT,$(TARGET))
 # Linker script for target
-TARGET_LD_SCRIPT = include/$(TARGET)/payload.ld
+TARGET_LD_SCRIPT = include/$(TARGET)/memory.ld
 # Target-specific init module
 TARGET_INIT = $(OUT_DIR)/$(TARGET)-init.o
 
