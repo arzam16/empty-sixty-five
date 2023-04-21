@@ -24,7 +24,35 @@ This tool works only with devices booted into BROM mode as I could not be arsed
 to implement crashing Preloader for old platforms.
 						""",
     )
-    parser.add_argument("da_file", help="File to use as a payload")
+    mode_parser = parser.add_mutually_exclusive_group()
+    mode_parser.add_argument(
+        "-i",
+        dest="mode_identify",
+        action="store_true",
+        help="Identify mode: print hardware info and exit",
+    )
+    mode_parser.add_argument(
+        "-p",
+        dest="mode_payload",
+        metavar="PAYLOAD",
+        action="store",
+        help="Payload mode: push PAYLOAD to device",
+    )
+    payload_options = parser.add_mutually_exclusive_group()
+    payload_options.add_argument(
+        "-pr",
+        dest="mode_payload_receive",
+        action="store_true",
+        help="[Payload mode only] Receive data: Wait for >Mtk and <Mtk "
+        "magics and save data to files with sequential names.",
+    )
+    payload_options.add_argument(
+        "-pg",
+        dest="mode_payload_greedy",
+        action="store_true",
+        help="[Payload mode only] Be greedy: receive and print all data "
+        "after jumping to payload (4 bytes at a time).",
+    )
     dbg_parser = parser.add_mutually_exclusive_group()
     dbg_parser.add_argument(
         "-v",
@@ -40,29 +68,9 @@ to implement crashing Preloader for old platforms.
         const=LOG_LEVEL_BROM_IO,
         help="Super verbose: also print all read/write operations",
     )
-    mode_parser = parser.add_mutually_exclusive_group()
-    mode_parser.add_argument(
-        "-r",
-        dest="mode_receive",
-        action="store_true",
-        help="Receive mode: wait for >Mtk and <Mtk magics and save data to files",
-    )
-    mode_parser.add_argument(
-        "-g",
-        dest="mode_greedy",
-        action="store_true",
-        help="Greedy mode: receive and print all data after jumping to "
-        "payload (4 bytes at a time)",
-    )
     args = parser.parse_args()
 
     init_logging(args)
-
-    da = None
-    with open(args.da_file, "rb") as fis:
-        da = fis.read()
-    da_len = len(da)
-    logging.info(f"Payload size {da_len} bytes ({as_0x(da_len)})")
 
     device = Device().find()
     if not device:
@@ -75,15 +83,10 @@ to implement crashing Preloader for old platforms.
         logging.critical("Handshake error!", exc_info=True)
 
     manager = DeviceManager(device)
-    try:
-        manager.replay(da)
-    except:
-        logging.critical("Replay error!", exc_info=True)
-
-    if args.mode_greedy:
-        handle_greedy(device)
-    elif args.mode_receive:
-        handle_receive(device)
+    if args.mode_identify:
+        identify_mode(manager)
+    elif args.mode_payload:
+        payload_mode(args, manager)
 
     logging.info("Closing device")
     device.close()
@@ -111,6 +114,34 @@ def init_logging(args):
     logging.basicConfig(
         level=log_level, format="[%(asctime)s] <%(levelname)s> %(message)s"
     )
+
+
+def identify_mode(manager):
+    try:
+        manager.identify()
+    except:
+        logging.critical("Identification error!", exc_info=True)
+
+
+def payload_mode(args, manager):
+    try:
+        # Read the payload from file
+        payload = None
+        with open(args.mode_payload, "rb") as fis:
+            payload = fis.read()
+        payload_len = len(payload)
+        logging.info(f"Payload size {payload_len} bytes ({as_0x(payload_len)})")
+
+        # Launch replay and push payload
+        manager.replay(payload)
+
+        # Handle incoming data
+        if args.mode_payload_greedy:
+            handle_greedy(manager.dev)
+        elif args.mode_payload_receive:
+            handle_receive(manager.dev)
+    except:
+        logging.critical("Replay error!", exc_info=True)
 
 
 def handle_greedy(device):

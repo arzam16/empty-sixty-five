@@ -11,6 +11,25 @@ class DeviceManager:
         self.dev = dev
         self.payload = None
 
+    # Print chip IDs
+    def identify(self):
+        hw_code = self.dev.get_hw_code()
+        logging.info(f"HW code: {as_hex(hw_code, 2)}")
+
+        # mt6573 is a bit different
+        if hw_code == 0x6573:
+            hw_ver = self.dev.read16(0x70026000, check_status=False)
+            sw_ver = self.dev.read16(0x70026004, check_status=False)
+            logging.info(f"HW version: {as_hex(hw_ver, size=2)}")
+            logging.info(f"SW version: {as_hex(sw_ver, size=2)}")
+            return (hw_code, hw_ver, sw_ver)
+
+        hw_dict = self.dev.get_hw_sw_ver()
+        logging.info(f"HW subcode: {as_hex(hw_dict[0], 2)}")
+        logging.info(f"HW version: {as_hex(hw_dict[1], 2)}")
+        logging.info(f"SW version: {as_hex(hw_dict[2], 2)}")
+        return (hw_code, *hw_dict)
+
     # Request chip ID and replay its traffic
     def replay(self, payload):
         self.payload = payload
