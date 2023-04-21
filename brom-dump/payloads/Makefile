@@ -83,7 +83,7 @@ $(OUT_DIR)/$(TARGET)-piggyback.ld: include/$(TARGET)/memory.ld $(TARGET_DA_PATCH
 
 $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
 	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
-		tail -c +14813 | head -c 90932 \
+		tail -c +14813 | head -c 90676 \
 		> "$@"
 
 # Patch the internal memory initialization routine to jump to our payload
@@ -108,7 +108,7 @@ $(OUT_DIR)/mt6573-da-patched.bin: $(AUX_DIR)/mt6573-da-original.bin | $(OUT_DIR)
 
 $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
 	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
-		tail -c +767137 | head -c 141012 \
+		tail -c +767137 | head -c 140756 \
 		> "$@"
 
 # Before patch:
