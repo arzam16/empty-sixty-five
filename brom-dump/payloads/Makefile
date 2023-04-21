@@ -23,7 +23,7 @@ TARGET ?= unsupported
 # Pass `#define TARGET_MTxxxx 1` to compiler
 TARGET_DEF = TARGET_$(subst mt,MT,$(TARGET))
 # Linker script for target
-TARGET_LD_SCRIPT = include/$(TARGET)/memory.ld
+TARGET_LD_SCRIPT = $(OUT_DIR)/$(TARGET)-piggyback.ld
 # Target-specific init module
 TARGET_INIT = $(OUT_DIR)/$(TARGET)-init.o
 
@@ -56,6 +56,7 @@ clean:
 	rm -vf $(AUX_DIR)/*-da-original.bin
 	rm -vf $(OUT_DIR)/*-da-patched.bin
 	rm -vf $(OUT_DIR)/*.o
+	rm -vf $(OUT_DIR)/*.ld
 	rm -vf $(BUILD_DIR)/*-payload.bin
 
 
@@ -68,14 +69,17 @@ $(OUT_DIR)/$(TARGET)-hello-world-uart-piggyback.o: hello-world-uart.c | $(OUT_DI
 $(OUT_DIR)/$(TARGET)-usb-dump-piggyback.o: usb-dump.c | $(OUT_DIR)
 	$(CC) $(CFLAGS) -o "$@" "$<"
 
-%-piggyback.elf: %-piggyback.o $(TARGET_INIT) | $(OUT_DIR)
-	$(LD) $(LDFLAGS) -o "$@" $^
+%-piggyback.elf: %-piggyback.o $(TARGET_INIT) $(TARGET_LD_SCRIPT) | $(OUT_DIR)
+	$(LD) $(LDFLAGS) -o "$@" "$<" $(TARGET_INIT)
 
 %-piggyback.bin: %-piggyback.elf | $(OUT_DIR)
 	$(OBJCOPY) -O binary -S -g "$<" "$@"
 
 $(BUILD_DIR)/$(TARGET)-%-payload.bin: $(TARGET_DA_PATCHED) $(OUT_DIR)/$(TARGET)-%-piggyback.bin | $(BUILD_DIR) $(OUT_DIR)
 	cat $^ > "$@"
+
+$(OUT_DIR)/$(TARGET)-piggyback.ld: include/$(TARGET)/memory.ld $(TARGET_DA_PATCHED)
+	python3 scripts/piggyback-ld.py $^ "$@"
 
 $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
 	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
@@ -97,11 +101,10 @@ $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 # ======================================================================
 # 90005bd4 00 78           ldrb       r0,[r0,#0x0]
 # 90005bd6 88 47           blx        r1
-# 90005bd8 15 f0 ac eb     blx        FUN_9001b334
+# 90005bd8 XX XX XX XX     blx        PAYLOAD_ENTRY_POINT
 $(OUT_DIR)/mt6573-da-patched.bin: $(AUX_DIR)/mt6573-da-original.bin | $(OUT_DIR) $(AUX_DIR)
-	xxd -c 256 -p "$<" |\
-		sed -e "s/00788847e8680078/0078884715f0aceb/" |\
-		xxd -p -r > "$@"
+	python3 scripts/patch-da.py \
+		"$<" "include/$(TARGET)/memory.ld" 0x90005bd8 "$@"
 
 $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
 	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
@@ -118,11 +121,10 @@ $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 # After patch:
 # ======================================================================
 # 12000cd6 ff f7 cc ff     bl         FUN_12000c72
-# 12000cda 21 f0 fc ec     blx        FUN_120226d4
+# 12000cda XX XX XX XX     blx        PAYLOAD_ENTRY_POINT
 $(OUT_DIR)/mt6589-da-patched.bin: $(AUX_DIR)/mt6589-da-original.bin | $(OUT_DIR) $(AUX_DIR)
-	xxd -c 256 -p "$<" |\
-		sed -e "s/fff7ccff60688047/fff7ccff21f0fcec/" |\
-		xxd -p -r > "$@"
+	python3 scripts/patch-da.py \
+		"$<" "include/$(TARGET)/memory.ld" 0x12000cda "$@"
 
 $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip: | $(AUX_DIR)
 	wget \
