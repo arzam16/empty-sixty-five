@@ -6,7 +6,7 @@ import argparse
 import logging
 from functools import partial, partialmethod
 
-from src.common import as_0x, as_hex, from_bytes
+from src.common import as_0x
 from src.device import Device
 from src.manager import DeviceManager
 
@@ -89,7 +89,7 @@ to implement crashing Preloader for old platforms.
         payload_mode(args, manager)
 
     logging.info("Closing device")
-    device.close()
+    manager.finish()
 
 
 def init_logging(args):
@@ -136,55 +136,12 @@ def payload_mode(args, manager):
         manager.replay(payload)
 
         # Handle incoming data
-        if args.mode_payload_greedy:
-            handle_greedy(manager.dev)
-        elif args.mode_payload_receive:
-            handle_receive(manager.dev)
+        if args.mode_payload_receive:
+            manager.receive_data()
+        elif args.mode_payload_greedy:
+            manager.receive_greedy()
     except:
         logging.critical("Replay error!", exc_info=True)
-
-
-def handle_greedy(device):
-    logging.info("Greedy mode! Waiting for incoming data... :)")
-    logging.info("Hit Ctrl+C to stop waiting")
-    try:
-        data = None
-        while True:
-            data = device.read(4)
-            if not data:
-                logging.error("Cannot receive data!")
-                break
-            logging.info(f"<- DA: {as_hex(data)}")
-    except KeyboardInterrupt:
-        logging.info("Stopped reading")
-
-
-def handle_receive(device):
-    logging.info("Waiting for custom payload response")
-
-    # This function is prone to errors.
-    # TODO: add more try-except!
-
-    seq = from_bytes(device.read(4), 4)
-    if seq == 0x3E4D746B:  # >Mtk
-        logging.info("Received HELLO sequence")
-    else:
-        logging.info(f"Received invalid data {as_hex(seq)}, expected HELLO sequence")
-
-    idx = 1
-    size = from_bytes(device.read(4), 4)
-    while size != 0x4D746B3C:  # <Mtk
-        logging.info(f"Reading {size} bytes")
-        data = device.read(size)
-        filename = f"dump-{idx}.bin"
-        with open(filename, "wb") as fos:
-            fos.write(data)
-        logging.info(f"Saved to {filename}")
-
-        idx += 1
-        size = from_bytes(device.read(4), 4)
-
-    logging.info("Received GOODBYE sequence")
 
 
 if __name__ == "__main__":
