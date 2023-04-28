@@ -1,14 +1,17 @@
 @ SPDX-License-Identifier: GPL-3.0-only
 @ SPDX-FileCopyrightText: 2023 arzamas-16 <https://github.com/arzamas-16>
 
+.ifdef PAYLOAD_PIGGYBACK
 	.include "hw-api.s"
+.endif
 
 	.section .text.init
 	.global _init
 _init:
+.ifdef PAYLOAD_PIGGYBACK
 	LDR R0, =MEM_stack_base
 	CPY SP, R0					@ reset stack pointer
-
+.endif
 	MOVS R0, #0
 	MOV R1, #0
 	MOV R2, #0

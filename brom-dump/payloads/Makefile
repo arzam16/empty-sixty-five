@@ -16,19 +16,33 @@ PB_PAYLOADS		:= hello-world-uart \
 PB_SRC_DIR		:= $(SRC_DIR)/piggyback
 PB_OUT_DIR		:= $(OUT_DIR)/piggyback
 PB_RELEASE_DIR	:= $(RELEASE_DIR)/piggyback
-PB_INIT			:= $(PB_OUT_DIR)/$(TARGET)-init-piggyback.o
-PB_LD_SCRIPT	:= $(PB_OUT_DIR)/$(TARGET)-piggyback.ld
+PB_INIT			= $(PB_OUT_DIR)/$(TARGET)-init-piggyback.o
+PB_LD_SCRIPT	= $(PB_OUT_DIR)/$(TARGET)-piggyback.ld
 PB_SRC			:= $(foreach P, $(PB_PAYLOADS), $(PB_SRC_DIR)/$(P).c)
 PB_OBJ			= $(foreach P, $(PB_PAYLOADS), $(PB_OUT_DIR)/$(TARGET)-$(P).o)
 PB_ELF			= $(foreach P, $(PB_PAYLOADS), $(PB_OUT_DIR)/$(TARGET)-$(P).elf)
 PB_BIN			= $(foreach P, $(PB_PAYLOADS), $(PB_OUT_DIR)/$(TARGET)-$(P)-stripped.bin)
 PB_RELEASES		= $(foreach P, $(PB_PAYLOADS), $(PB_RELEASE_DIR)/$(TARGET)-$(P).bin)
 
-ALL_RELEASES	= $(PB_RELEASES)
+SA_PAYLOADS		:= hello-world-uart \
+					uart-dump
+SA_SRC_DIR		:= $(SRC_DIR)/standalone
+SA_OUT_DIR		:= $(OUT_DIR)/standalone
+SA_RELEASE_DIR	:= $(RELEASE_DIR)/standalone
+SA_INIT			= $(SA_OUT_DIR)/$(TARGET)-init-standalone.o
+SA_LD_SCRIPT	= $(INCLUDE_DIR)/$(TARGET)/memory.ld
+SA_SRC			:= $(foreach P, $(SA_PAYLOADS), $(SA_SRC_DIR)/$(P).c)
+SA_OBJ			= $(foreach P, $(SA_PAYLOADS), $(SA_OUT_DIR)/$(TARGET)-$(P).o)
+SA_ELF			= $(foreach P, $(SA_PAYLOADS), $(SA_OUT_DIR)/$(TARGET)-$(P).elf)
+SA_RELEASES		= $(foreach P, $(SA_PAYLOADS), $(SA_RELEASE_DIR)/$(TARGET)-$(P).bin)
 
-AVAILABLE_SOCS		:= mt6573 mt6589
+ALL_RELEASES	= $(SA_RELEASES) $(PB_RELEASES)
+
+AVAILABLE_SOCS		:= mt6573 mt6577 mt6589
 MT6573_RELEASES		:= $(PB_RELEASES)
 MT6573_FLAGS		:= -mcpu=arm1176jzf-s
+MT6577_RELEASES		:= $(SA_RELEASES)
+MT6577_FLAGS		:= -mcpu=cortex-a9
 MT6589_RELEASES		:= $(PB_RELEASES)
 MT6589_FLAGS		:= -mcpu=cortex-a7
 
@@ -86,6 +100,10 @@ pb-elf: target-check $(PB_ELF)
 pb-bin: target-check $(PB_BIN)
 piggybacks: target-check $(PB_RELEASES)
 
+sa-obj: target-check $(SA_OBJ)
+sa-elf: target-check $(SA_ELF)
+standalones: target-check $(SA_RELEASES)
+
 # init for piggyback payloads
 $(PB_INIT): $(SRC_DIR)/init.s | $(PB_OUT_DIR)
 	$(AS) $(ASFLAGS) --defsym PAYLOAD_PIGGYBACK=1 -o "$@" "$<"
@@ -98,6 +116,7 @@ $(PB_OUT_DIR)/$(TARGET)-%.o: $(PB_SRC_DIR)/%.c $(TARGET_HEADERS) | $(PB_OUT_DIR)
 $(PB_OUT_DIR)/%.elf: $(PB_OUT_DIR)/%.o $(PB_INIT) $(PB_LD_SCRIPT) | $(PB_OUT_DIR)
 	$(LD) $(LDFLAGS) -T $(PB_LD_SCRIPT) -o "$@" "$<" $(PB_INIT)
 
+# PB_BIN: PB_ELF
 %-stripped.bin: %.elf | $(OUT_DIR)
 	$(OBJCOPY) -O binary -S -g "$<" "$@"
 
@@ -168,7 +187,22 @@ $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip: | $(AUX_DIR)
 	sha256sum "temp-v5.1468-linux.zip" | grep -q -F $(CHECKSUM_SPFT_V5_1648_LINUX)
 	mv "temp-v5.1468-linux.zip" "$@"
 
+# init for standalone payloads
+$(SA_INIT): $(SRC_DIR)/init.s | $(SA_OUT_DIR)
+	$(AS) $(ASFLAGS) --defsym PAYLOAD_STANDALONE=1 -o "$@" "$<"
+
+# Build each SA_OBJ
+$(SA_OUT_DIR)/$(TARGET)-%.o: $(SA_SRC_DIR)/%.c $(TARGET_HEADERS) | $(SA_OUT_DIR)
+	$(CC) $(CFLAGS) -o "$@" "$<"
+
+# Link .o with init
+$(SA_OUT_DIR)/%.elf: $(SA_OUT_DIR)/%.o $(SA_INIT) $(SA_LD_SCRIPT) | $(SA_OUT_DIR)
+	$(LD) $(LDFLAGS) -T $(SA_LD_SCRIPT) -o "$@" "$<" $(SA_INIT)
+
+# SA_RELEASES: SA_ELF
+$(SA_RELEASE_DIR)/$(TARGET)-%.bin: $(SA_OUT_DIR)/$(TARGET)-%.elf | $(SA_RELEASE_DIR)
+	$(OBJCOPY) -O binary -S -g "$<" "$@"
 
 # Create directories
-$(AUX_DIR) $(OUT_DIR) $(PB_OUT_DIR) $(PB_RELEASE_DIR):
+$(AUX_DIR) $(OUT_DIR) $(PB_OUT_DIR) $(PB_RELEASE_DIR) $(SA_OUT_DIR) $(SA_RELEASE_DIR):
 	mkdir -p "$@"

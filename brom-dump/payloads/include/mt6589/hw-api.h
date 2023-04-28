@@ -2,6 +2,10 @@
 // SPDX-FileCopyrightText: 2023 arzamas-16 <https://github.com/arzamas-16>
 
 #define HW_reg_chip_id			0x08000000
+#define HW_reg_uart0_base		0x11006000
+#define HW_reg_uart1_base		0x11007000
+#define HW_reg_uart2_base		0x11008000
+#define HW_reg_uart3_base		0x11009000
 
 #define MEM_brom_start			0x0
 #define MEM_brom_length			0x10000
