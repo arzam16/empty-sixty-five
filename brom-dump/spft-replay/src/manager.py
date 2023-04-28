@@ -39,6 +39,16 @@ class DeviceManager:
 
         if hw_code == 0x6573:
             self.replay_mt6573()
+        elif hw_code == 0x6575:
+            # There are multiple revisions of mt6575 SoCs
+            ver = self.dev.get_hw_sw_ver()
+            if ver == (0x8B00, 0xCB00, 0xE201):
+                logging.replay("Detected mt6577 / mt8317")
+                self.replay_mt6577_mt8317()
+            else:
+                raise Exception(
+                    "Unsupported hardware " f"{', '.join(as_hex(x, 2) for x in ver)}"
+                )
         elif hw_code == 0x6583:  # The code is 0x6583 but the SoC is 6589
             self.replay_mt6589()
         else:
@@ -126,6 +136,98 @@ class DeviceManager:
         logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
 
         dev.jump_da(0x90005000)
+
+        # Download Agent is running and sends some data we have to receive
+        # and ACK in order to get everything initialized before it will
+        # jump to custom payload.
+        logging.replay("Waiting for device to send remaining data")
+        logging.replay(f"<- DA: (unknown) {as_hex(dev.read(1))}")  # C0
+        logging.replay(f"<- DA: (unknown) {as_hex(dev.read(1))}")  # 03
+        logging.replay(f"<- DA: (unknown) {as_hex(dev.read(1))}")  # 02
+        logging.replay(f"<- DA: (unknown) {as_hex(dev.read(1))}")  # 83
+
+    def replay_mt6577_mt8317(self):
+        # use local variable to avoid lots of `self.dev`
+        dev = self.dev
+
+        dev.get_hw_code()  # Yes, SP Flash Tool requests it twice
+        hw_dict = dev.get_hw_sw_ver()  # This too
+        logging.replay(f"HW subcode: {as_hex(hw_dict[0], 2)}")
+        logging.replay(f"HW version: {as_hex(hw_dict[1], 2)}")
+        logging.replay(f"SW version: {as_hex(hw_dict[2], 2)}")
+
+        val = dev.read32(0xC0009024)  # PWR_CTL1
+        val = dev.read32(0xC0009010)  # RST_CTL0
+        dev.write32(0xC0009010, 0x03000002)
+        dev.write32(0xC0009010, 0x03000000)
+        val = dev.read32(0xC0009010)
+
+        # Disable watchdog timer and dump Reset Generator Unit registers
+        logging.replay("Disabling watchdog")
+        val = dev.read16(0xC0000000)  # 0065
+        dev.write16(0xC0000000, 0x2264)
+
+        # SP Flash Tool already knows the device is in BROM mode but still
+        # requests the preloader version
+        val = dev.get_preloader_version()
+
+        for addr in range(0xC0000000, 0xC0000018 + 1, 4):
+            val = dev.read16(addr)
+            logging.replay(f"TOPRGU register {as_0x(addr)} == {as_hex(val)}")
+
+        logging.replay("Setup RTC")
+        val = dev.read16(0xC1003000)  # 0008
+        val = dev.read16(0xC1003050)  # 0000
+        val = dev.read16(0xC1003054)  # 0000
+
+        dev.write16(0xC1003010, 0x0000)  # RTC_AL_MASK
+        dev.write16(0xC1003008, 0x0000)  # RTC_IRQ_EN
+        dev.write16(0xC100300C, 0x0000)  # RTC_CII_EN
+        dev.write16(0xC1003074, 0x0001)  # Commit changes
+        val = dev.read16(0xC1003000)  # 0008
+
+        dev.write16(0xC1003050, 0xA357)  # Write reference value
+        dev.write16(0xC1003054, 0x67D2)  # Write reference value
+        dev.write16(0xC1003074, 0x0001)  # Commit changes
+        val = dev.read16(0xC1003000)  # 0008
+
+        dev.write16(0xC1003068, 0x586A)  # Unlock RTC protection (part 1)
+        dev.write16(0xC1003074, 0x0001)  # Commit changes
+        val = dev.read16(0xC1003000)  # 0008
+
+        dev.write16(0xC1003068, 0x9136)  # Unlock RTC protection (part 2)
+        dev.write16(0xC1003074, 0x0001)  # Commit changes
+        val = dev.read16(0xC1003000)  # 0008
+
+        dev.write16(0xC1003000, 0x430E)  # Enable bus writes + PMIC RTC + auto mode
+        dev.write16(0xC1003074, 0x0001)  # Commit changes
+        val = dev.read16(0xC1003000)  # 000E
+
+        val = dev.get_me_id()
+        logging.replay(f"ME ID: {as_hex(val)}")
+        val = dev.get_me_id()  # Again
+
+        val = dev.get_target_config()
+        logging.replay(f"Target config: {val}")
+        val = dev.get_target_config()
+
+        val = dev.get_brom_version()
+        logging.replay(f"BROM version: {as_hex(val, 1)}")
+        val = dev.get_preloader_version()
+
+        # External memory interface
+        MT6577_EMI_GENA = 0xC0003070
+        val = dev.read32(MT6577_EMI_GENA)  # 00000000 on my device
+        dev.write32(MT6577_EMI_GENA, 0x00000002)
+        logging.replay(
+            f"EMI_GENA ({as_0x(MT6577_EMI_GENA)}) "
+            f"set to {as_hex(0x2)}, was {as_hex(val)}"
+        )
+
+        val = dev.send_da(0xC2000000, len(self.payload), 0, self.payload)
+        logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
+
+        dev.jump_da(0xC2000000)
 
         # Download Agent is running and sends some data we have to receive
         # and ACK in order to get everything initialized before it will

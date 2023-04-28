@@ -22,6 +22,8 @@
    * [Fixing and defining the usbdl_put_data](#fixing-and-defining-the-usbdl_put_data)
    * [Sending the data](#sending-the-data)
 * [chaosmaster's generic_uart_dump](#chaosmasters-generic_uart_dump)
+* [Dumping mt6575 / mt6577 / mt8317 / mt8377 BROM](#dumping-mt6575--mt6577--mt8317--mt8377-brom)
+   * [Replaying whole traffic isn't necessary](#replaying-whole-traffic-isnt-necessary)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -503,3 +505,29 @@ This payload reads the specified memory region byte-by-byte and prints each byte
 `uart_reg0` is a status register and the `while` loop is here to wait until the 5th bit (`0x20`) is set which means the FIFO buffer is ready to accept new data.
 
 Once the wait cycle is complete the byte is written to the `uart_reg1` register.
+
+# Dumping mt6575 / mt6577 / mt8317 / mt8377 BROM
+## Replaying whole traffic isn't necessary
+My previous undocumented experiments showed that on these platforms the BootROM initializes hardware enough to just push a payload without depending on the patched DA and even replaying SP Flash Tool traffic (to some extent).
+
+These SoCs are very similar to each other. The mt8317 which is closer to mt6577 still identifies itself as `0x6575` which is weird. The `MTK_AllInOne_DA.bin` found in the SP Flash Tool v5.1648 distribution contains different DAs for the following platforms:
+
+| HW code | HW subcode            | HW version | SW version |
+|---------|-----------------------|------------|------------|
+| 0x6575  | (not checked in SPFT) | 0xCA00     | 0xE100     |
+| 0x6575  | (not checked in SPFT) | 0xCB00     | 0xE201     |
+| 0x6577  | (not checked in SPFT) | 0xCA00     | 0xE100     |
+
+I implemented the `identify` mode in `spft-replay` to conveniently identify my hardware. I've got an mt8317-based tablet and an mt6575-based phone. Both identified as following:
+
+```
+<INFO> Waiting for device in BROM mode (0E8D:0003)
+<INFO> Found device
+<INFO> Handshake completed!
+<INFO> HW code: 6575
+<INFO> HW subcode: 8B00
+<INFO> HW version: CB00
+<INFO> SW version: E201
+```
+
+So I implemented traffic replay for these specific IDs only (for now). But in general on this SoC family it should be OK to just disable the watchdog and push the payload.
