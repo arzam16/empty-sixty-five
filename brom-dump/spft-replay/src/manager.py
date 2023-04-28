@@ -42,8 +42,7 @@ class DeviceManager:
         elif hw_code == 0x6583:  # The code is 0x6583 but the SoC is 6589
             self.replay_mt6589()
         else:
-            logging.critical("Unsupported hardware!")
-            exit(1)
+            raise Exception("Unsupported hardware!")
 
     def replay_mt6573(self):
         # use local variable to avoid lots of `self.dev`
