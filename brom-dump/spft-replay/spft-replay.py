@@ -24,7 +24,7 @@ This tool works only with devices booted into BROM mode as I could not be arsed
 to implement crashing Preloader for old platforms.
 						""",
     )
-    mode_parser = parser.add_mutually_exclusive_group()
+    mode_parser = parser.add_mutually_exclusive_group(required=True)
     mode_parser.add_argument(
         "-i",
         dest="mode_identify",
