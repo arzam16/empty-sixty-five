@@ -41,7 +41,7 @@ class DeviceManager:
             logging.info(line)
 
     # Request chip ID and replay its traffic
-    def replay(self, payload, skip_remaining_data):
+    def replay(self, payload, simple_mode, skip_remaining_data):
         self.payload = payload
 
         hw_code = self.dev.get_hw_code()
@@ -64,23 +64,27 @@ class DeviceManager:
         else:
             raise Exception("Unsupported hardware!")
 
-        logging.replay("Identify")
-        self.platform.identify_chip()
+        if simple_mode:
+            logging.replay("Disable watchdog")
+            self.platform.disable_watchdog()
+        else:
+            logging.replay("Identify")
+            self.platform.identify_chip()
 
-        logging.replay("Initialize PMIC")
-        self.platform.init_pmic()
+            logging.replay("Initialize PMIC")
+            self.platform.init_pmic()
 
-        logging.replay("Disable watchdog")
-        self.platform.disable_watchdog()
+            logging.replay("Disable watchdog")
+            self.platform.disable_watchdog()
 
-        logging.replay("Initialize RTC")
-        self.platform.init_rtc()
+            logging.replay("Initialize RTC")
+            self.platform.init_rtc()
 
-        logging.replay("Identify software components")
-        self.platform.identify_software()
+            logging.replay("Identify software components")
+            self.platform.identify_software()
 
-        logging.replay("Initialize external memory interface")
-        self.platform.init_emi()
+            logging.replay("Initialize external memory interface")
+            self.platform.init_emi()
 
         logging.replay("Send payload")
         self.platform.send_payload(self.payload)

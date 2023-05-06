@@ -39,6 +39,14 @@ to implement crashing Preloader for old platforms.
         help="Payload mode: replay SP Flash Tool traffic for a device "
         "then push PAYLOAD and jump to it",
     )
+    mode.add_argument(
+        "-s",
+        dest="mode_simple_payload",
+        metavar="PAYLOAD",
+        action="store",
+        help="Simple payload mode: just disable the watchdog then push "
+        "PAYLOAD to device and jump to it",
+    )
 
     parser.add_argument(
         "-sr",
@@ -98,7 +106,7 @@ to implement crashing Preloader for old platforms.
     manager = DeviceManager(device)
     if args.mode_identify:
         identify_mode(manager)
-    elif args.mode_payload:
+    elif args.mode_payload or args.mode_simple_payload:
         payload_mode(args, manager)
 
     logging.info("Closing device")
@@ -140,13 +148,16 @@ def payload_mode(args, manager):
     try:
         # Read the payload from file
         payload = None
-        with open(args.mode_payload, "rb") as fis:
+        payload_path = args.mode_payload or args.mode_simple_payload
+        with open(payload_path, "rb") as fis:
             payload = fis.read()
         payload_len = len(payload)
         logging.info(f"Payload size {payload_len} bytes ({as_0x(payload_len)})")
 
         # Launch replay and push payload
-        manager.replay(payload, args.skip_remaining_data)
+        simple_mode = bool(args.mode_simple_payload)
+        skip_remaining_data = args.skip_remaining_data
+        manager.replay(payload, simple_mode, skip_remaining_data)
 
         # Handle incoming data
         if args.mode_payload_receive:
