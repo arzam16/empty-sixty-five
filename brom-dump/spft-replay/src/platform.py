@@ -1,6 +1,6 @@
 import logging
 
-from src.common import as_0x, as_hex
+from src.common import as_0x, as_hex, target_config_to_string
 
 
 class AbstractPlatform:
@@ -108,7 +108,8 @@ class MT6573(AbstractPlatform):
         val = self.dev.get_me_id()
 
         val = self.dev.get_target_config()
-        logging.replay(f"Target config: {val}")
+        for line in target_config_to_string(val):
+            logging.replay(line)
         val = self.dev.get_target_config()
 
         val = self.dev.get_brom_version()
@@ -201,7 +202,8 @@ class MT6577(AbstractPlatform):
         val = self.dev.get_me_id()  # Again
 
         val = self.dev.get_target_config()
-        logging.replay(f"Target config: {val}")
+        for line in target_config_to_string(val):
+            logging.replay(line)
         val = self.dev.get_target_config()
 
         val = self.dev.get_brom_version()

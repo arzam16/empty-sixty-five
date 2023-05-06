@@ -8,6 +8,10 @@ import struct
 import time
 
 
+def bit(n):
+    return 1 << n
+
+
 def raise_(ex):
     raise ex
 
@@ -70,3 +74,12 @@ def report_write_progress(off_start, off_end, data_sz):
         logging.info(f"Uploaded {off_end} out of {data_sz} bytes ({perc_progr}%)")
         last_progr_upd_at = time.time()
         last_progr_perc = perc_progr
+
+
+def target_config_to_string(config):
+    return [
+        f"Raw target config value: {as_hex(config)}",
+        f"Secure boot: {'YES' if config & bit(1) else 'NO'}",
+        f"Serial link auth: {'YES' if config & bit(2) else 'NO'}",
+        f"Download agent auth: {'YES' if config & bit(3) else 'NO'}",
+    ]

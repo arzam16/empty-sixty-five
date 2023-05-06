@@ -272,17 +272,7 @@ class Device:
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
-        target_config = from_bytes(target_config, 4)
-
-        secure_boot = target_config & 1
-        serial_link_authorization = target_config & 2
-        download_agent_authorization = target_config & 4
-
-        return (
-            bool(secure_boot),
-            bool(serial_link_authorization),
-            bool(download_agent_authorization),
-        )
+        return from_bytes(target_config, 4)
 
     def get_hw_code(self):
         logging.brom("Get HW code")

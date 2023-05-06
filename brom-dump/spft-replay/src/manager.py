@@ -3,7 +3,7 @@
 
 import logging
 
-from src.common import as_hex, from_bytes
+from src.common import as_hex, from_bytes, target_config_to_string
 from src.platform import MT6573, MT6577, MT6589
 
 
@@ -24,13 +24,21 @@ class DeviceManager:
             sw_ver = self.dev.read16(0x70026004, check_status=False)
             logging.info(f"HW version: {as_hex(hw_ver, size=2)}")
             logging.info(f"SW version: {as_hex(sw_ver, size=2)}")
-            return (hw_code, hw_ver, sw_ver)
+        else:
+            hw_dict = self.dev.get_hw_sw_ver()
+            logging.info(f"HW subcode: {as_hex(hw_dict[0], 2)}")
+            logging.info(f"HW version: {as_hex(hw_dict[1], 2)}")
+            logging.info(f"SW version: {as_hex(hw_dict[2], 2)}")
 
-        hw_dict = self.dev.get_hw_sw_ver()
-        logging.info(f"HW subcode: {as_hex(hw_dict[0], 2)}")
-        logging.info(f"HW version: {as_hex(hw_dict[1], 2)}")
-        logging.info(f"SW version: {as_hex(hw_dict[2], 2)}")
-        return (hw_code, *hw_dict)
+        brom_ver = self.dev.get_brom_version()
+        logging.info(f"BROM version: {as_hex(brom_ver, size=1)}")
+
+        me_id = self.dev.get_me_id()
+        logging.info(f"ME ID: {as_hex(me_id)}")
+
+        config = self.dev.get_target_config()
+        for line in target_config_to_string(config):
+            logging.info(line)
 
     # Request chip ID and replay its traffic
     def replay(self, payload):
