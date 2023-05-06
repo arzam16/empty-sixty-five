@@ -24,35 +24,48 @@ This tool works only with devices booted into BROM mode as I could not be arsed
 to implement crashing Preloader for old platforms.
 						""",
     )
-    mode_parser = parser.add_mutually_exclusive_group(required=True)
-    mode_parser.add_argument(
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
         "-i",
         dest="mode_identify",
         action="store_true",
         help="Identify mode: print hardware info and exit",
     )
-    mode_parser.add_argument(
+    mode.add_argument(
         "-p",
         dest="mode_payload",
         metavar="PAYLOAD",
         action="store",
-        help="Payload mode: push PAYLOAD to device",
+        help="Payload mode: replay SP Flash Tool traffic for a device "
+        "then push PAYLOAD and jump to it",
     )
-    payload_options = parser.add_mutually_exclusive_group()
-    payload_options.add_argument(
+
+    parser.add_argument(
+        "-sr",
+        dest="skip_remaining_data",
+        action="store_true",
+        help="[Payload mode only] Skip receiving remaining data after "
+        "jumping to payload. This option is very useful for standalone "
+        "payloads. However, using this option with piggyback payloads "
+        "WILL BREAK the flow.",
+    )
+
+    recv = parser.add_mutually_exclusive_group()
+    recv.add_argument(
         "-pr",
         dest="mode_payload_receive",
         action="store_true",
         help="[Payload mode only] Receive data: Wait for >Mtk and <Mtk "
         "magics and save data to files with sequential names.",
     )
-    payload_options.add_argument(
+    recv.add_argument(
         "-pg",
         dest="mode_payload_greedy",
         action="store_true",
         help="[Payload mode only] Be greedy: receive and print all data "
         "after jumping to payload (4 bytes at a time).",
     )
+
     dbg_parser = parser.add_mutually_exclusive_group()
     dbg_parser.add_argument(
         "-v",
@@ -133,7 +146,7 @@ def payload_mode(args, manager):
         logging.info(f"Payload size {payload_len} bytes ({as_0x(payload_len)})")
 
         # Launch replay and push payload
-        manager.replay(payload)
+        manager.replay(payload, args.skip_remaining_data)
 
         # Handle incoming data
         if args.mode_payload_receive:

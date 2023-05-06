@@ -41,7 +41,7 @@ class DeviceManager:
             logging.info(line)
 
     # Request chip ID and replay its traffic
-    def replay(self, payload):
+    def replay(self, payload, skip_remaining_data):
         self.payload = payload
 
         hw_code = self.dev.get_hw_code()
@@ -88,8 +88,11 @@ class DeviceManager:
         logging.replay("Jump to payload")
         self.platform.jump_to_payload()
 
-        logging.replay("Wait for remaining data")
-        self.platform.recv_remaining_data()
+        if skip_remaining_data:
+            logging.replay("Do not handle remaining data")
+        else:
+            logging.replay("Wait for remaining data")
+            self.platform.recv_remaining_data()
 
     def receive_data(self):
         logging.info("Waiting for custom payload response")
