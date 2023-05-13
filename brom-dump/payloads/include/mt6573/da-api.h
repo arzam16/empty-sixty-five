@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // SPDX-FileCopyrightText: 2023 arzamas-16 <https://github.com/arzamas-16>
 
+#ifndef H_MT6573_DA_API
+#define H_MT6573_DA_API
+
 #include <stdint.h>
 
 void (*DA_reset_uart_and_log)() =
@@ -26,3 +29,5 @@ uint32_t (*DA_io_usb_readl)() =
 void (*DA_io_usb_writel)(uint32_t) =
 	( void (*)(uint32_t) )
 	(0x90009BE4 + 1);
+
+#endif // H_MT6573_DA_API
