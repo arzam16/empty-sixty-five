@@ -536,4 +536,4 @@ So I implemented traffic replay for these specific IDs only (for now). But in ge
 ## Standalone payloads
 I wrote 2 simple standalone payloads. The first one, `hello-world-uart`, works in the same way as its piggyback counterpart. The second one, `uart-dump`, dumps specified regions as HEX-encoded strings. At least on mt8317 standalone payloads can only output to UART1 that has been initialized by BROM before jumping to the payload. If I ever make piggyback payloads they should work with UART4.
 
-There is a lot of duplicate code and I will refactor it in the future.
+Standalone payloads share some common code so I moved it out to a separate `standalone-util.c` file.
