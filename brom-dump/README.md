@@ -417,7 +417,7 @@ uint32_t pc = (((uint32_t)curpc) / 4 * 4);
 an alternative way to do this would be:
 
 ```
-uint32_t pc = curpc & ~0b11; // clear the first 2 bytes
+uint32_t pc = curpc & ~0b11; // clear the first 2 bits
 ```
 
 As result, `pc` value is `0xA4A6 / 4 * 4 = 0xA4A4`.
