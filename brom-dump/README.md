@@ -306,7 +306,7 @@ The `generic_dump` payload found in the [bypass_payloads](https://github.com/cha
 
 Not only it's a small and effective payload but it also has on-the-fly disassembly technique implemented.
 
-The idea of this payload is to derive a pointer to the table of I/O functions similar to [those described above](#figuring-out-io-api) and use it to call `usbdl_put_data(uint32_t* src, uint32_t len)` providing the base address of the BROM and its size.
+Actually, *both* DA and BROM have their own I/O function tables. The idea of this payload is to derive a pointer to the table of I/O functions similar to [those described above](#figuring-out-io-api) and use it to call `usbdl_put_data(uint32_t* src, uint32_t len)` providing the base address of the BROM and its size.
 
 To better illustrate what's really going on, I will use the BROM dump from [MT8382V](https://github.com/arzam16/SoC-BootROMs/blob/main/mediatek/mt8382v.bootrom.bin). This SoC shares the same registers with MT**65**82. I loaded this dump into Ghidra and set the base address to 0x0:
 
