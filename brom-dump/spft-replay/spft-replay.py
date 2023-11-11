@@ -4,6 +4,7 @@
 
 import argparse
 import logging
+import sys
 from functools import partial, partialmethod
 
 from src.common import as_0x
@@ -96,7 +97,7 @@ to implement crashing Preloader for old platforms.
     device = Device().find()
     if not device:
         logging.critical("Could not find device")
-        exit(1)  # Exit immediately
+        sys.exit(1)  # Exit immediately
 
     try:
         device.handshake()
