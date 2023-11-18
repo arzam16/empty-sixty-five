@@ -39,11 +39,13 @@ SA_RELEASES		= $(foreach P, $(SA_PAYLOADS), $(SA_RELEASE_DIR)/$(TARGET)-$(P).bin
 
 ALL_RELEASES	= $(SA_RELEASES) $(PB_RELEASES)
 
-AVAILABLE_SOCS		:= mt6573 mt6577 mt6589
+AVAILABLE_SOCS		:= mt6573 mt6577 mt6580 mt6589
 MT6573_RELEASES		:= $(PB_RELEASES)
 MT6573_FLAGS		:= -mcpu=arm1176jzf-s
 MT6577_RELEASES		:= $(SA_RELEASES)
 MT6577_FLAGS		:= -mcpu=cortex-a9
+MT6580_RELEASES		:= $(PB_RELEASES) $(SA_RELEASES)
+MT6580_FLAGS		:= -mcpu=cortex-a7
 MT6589_RELEASES		:= $(PB_RELEASES)
 MT6589_FLAGS		:= -mcpu=cortex-a7
 
@@ -155,6 +157,42 @@ $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 $(OUT_DIR)/mt6573-da-patched.bin: $(TARGET_DA_ORIGINAL) $(TARGET_MEMORY) | $(OUT_DIR)
 	python3 scripts/patch-da.py \
 		"$<" $(TARGET_MEMORY) 0x90005bd8 "$@"
+
+# TARGET_DA_ORIGINAL for mt6580
+# Add extra zero padding for DA memory allocations
+$(AUX_DIR)/mt6580-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
+	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
+		tail -c +3959277 | head -c 70440 |\
+		cat - /dev/zero | head -c 88064 \
+		> "$@"
+
+# TARGET_DA_PATCHED for mt6580
+# Patch the internal memory initialization routine to jump to our payload
+# before Download Agent starts waiting for more data from SP Flash Tool.
+#
+# Before patch:
+# ======================================================================
+# 002014da 00 f0 d3 fb     bl         printf_uart
+#                    LAB_002014de
+# 002014de 02 f0 9b fc     bl         init_print_pll_state
+#                    LAB_002014e2
+# 002014e2 81 4d           ldr        r5,[PTR_DAT_002016e8]
+# 002014e4 03 f0 74 fa     bl         init_power_down_something
+
+#
+#
+# After patch:
+# ======================================================================
+# 002014da 00 f0 d3 fb     bl         printf_uart
+#                    LAB_002014de
+# 002014de 02 f0 9b fc     bl         init_print_pll_state
+#                    LAB_002014e2
+# 002014e2 81 4d           ldr        r5,[PTR_DAT_002016e8]
+# 002014e4 XX XX XX XX     blx        PAYLOAD_ENTRY_POINT
+$(OUT_DIR)/mt6580-da-patched.bin: $(TARGET_DA_ORIGINAL) $(TARGET_MEMORY) | $(OUT_DIR)
+	python3 scripts/patch-da.py \
+		"$<" $(TARGET_MEMORY) 0x002014e4 "$@"
+
 
 # TARGET_DA_ORIGINAL for mt6589
 $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)

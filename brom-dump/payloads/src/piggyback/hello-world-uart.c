@@ -7,7 +7,9 @@
 #include "hw-api.h"
 
 void main() {
+#if !defined(TARGET_MT6580) && !defined(TARGET_MT6589)
 	DA_reset_uart_and_log();
+#endif
 
 	uint32_t chip_id = *(uint32_t*)HW_reg_chip_id;
 	DA_printf_uart("\n\n\nHello from mt%x!\n", chip_id, 0, 0);

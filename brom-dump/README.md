@@ -4,27 +4,32 @@
 # Table of contents
 <!--ts-->
 * [Dumping mt6589 BROM](#dumping-mt6589-brom)
-   * [Obtaining SP Flash Tool](#obtaining-sp-flash-tool)
-   * [Capturing USB traffic of SP Flash Tool and UART output](#capturing-usb-traffic-of-sp-flash-tool-and-uart-output)
-   * [Reverse engineering the Download Agent](#reverse-engineering-the-download-agent)
-   * [Patching Download Agent](#patching-download-agent)
-   * [Hello, world!](#hello-world)
-   * [Figuring out I/O API](#figuring-out-io-api)
-   * [The usb-dump payload](#the-usb-dump-payload)
+    * [Obtaining SP Flash Tool](#obtaining-sp-flash-tool)
+    * [Capturing USB traffic of SP Flash Tool and UART output](#capturing-usb-traffic-of-sp-flash-tool-and-uart-output)
+    * [Reverse engineering the Download Agent](#reverse-engineering-the-download-agent)
+    * [Patching Download Agent](#patching-download-agent)
+    * [Hello, world!](#hello-world)
+    * [Figuring out I/O API](#figuring-out-io-api)
+    * [The usb-dump payload](#the-usb-dump-payload)
 * [Dumping mt6573 BROM](#dumping-mt6573-brom)
-   * [SP Flash Tool issues](#sp-flash-tool-issues)
-   * [UART issues](#uart-issues)
-   * [reset_uart_and_log](#reset_uart_and_log)
+    * [SP Flash Tool issues](#sp-flash-tool-issues)
+    * [UART issues](#uart-issues)
+    * [reset_uart_and_log](#reset_uart_and_log)
 * [chaosmaster's generic_dump](#chaosmasters-generic_dump)
-   * [Function prologue](#function-prologue)
-   * [LDR instruction](#ldr-instruction)
-   * [Decoding LDR instruction bytes](#decoding-ldr-instruction-bytes)
-   * [Fixing and defining the usbdl_put_data](#fixing-and-defining-the-usbdl_put_data)
-   * [Sending the data](#sending-the-data)
+    * [Function prologue](#function-prologue)
+    * [LDR instruction](#ldr-instruction)
+    * [Decoding LDR instruction bytes](#decoding-ldr-instruction-bytes)
+    * [Fixing and defining the usbdl_put_data](#fixing-and-defining-the-usbdl_put_data)
+    * [Sending the data](#sending-the-data)
 * [chaosmaster's generic_uart_dump](#chaosmasters-generic_uart_dump)
 * [Dumping mt6575 / mt6577 / mt8317 / mt8377 BROM](#dumping-mt6575--mt6577--mt8317--mt8377-brom)
-   * [Replaying whole traffic isn't necessary](#replaying-whole-traffic-isnt-necessary)
-   * [Standalone payloads](#standalone-payloads)
+    * [Replaying whole traffic isn't necessary](#replaying-whole-traffic-isnt-necessary)
+    * [Standalone payloads](#standalone-payloads)
+* [Dumping mt6580 BROM](#dumping-mt6580-brom)
+    * [Bringing the dead smartphone to the minimum working condition](#bringing-the-dead-smartphone-to-the-minimum-working-condition)
+    * [UART issues ensue](#uart-issues-ensue)
+    * [Implementing a piggyback payload](#implementing-a-piggyback-payload)
+    * [Looking for BROM itself](#looking-for-brom-itself)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -299,7 +304,7 @@ Now I just need to add this call to my `hello-world-uart` payload and it should 
 
 ![mt6573 hello-world-uart payload output](../images/brom-dump-016.png)
 
-... *ta-da!* The introduced call doesn't seem to harm the mt6589 variant of payload so I decided to not guard it with `#ifdef TARGET_MT6573` but kept the appropriate Makefile change for setting a `TARGET_MTxxxx` for future.
+... *ta-da!* The introduced call doesn't seem to harm the mt6589 variant of payload so I decided to not guard it with `#ifdef TARGET_MT6573` but kept the appropriate Makefile change for setting a `TARGET_MTxxxx` for future. **Update**: after the mt658**0** the `#if` is there. `reset_uart_and_log` will not be called on mt6580 and mt6589.
 
 # chaosmaster's generic_dump
 The `generic_dump` payload found in the [bypass_payloads](https://github.com/chaosmaster/bypass_payloads/blob/master/generic_dump.c) is quite an interesting solution worth explaining.
@@ -537,3 +542,105 @@ So I implemented traffic replay for these specific IDs only (for now). But in ge
 I wrote 2 simple standalone payloads. The first one, `hello-world-uart`, works in the same way as its piggyback counterpart. The second one, `uart-dump`, dumps specified regions as HEX-encoded strings. At least on mt8317 standalone payloads can only output to UART1 that has been initialized by BROM before jumping to the payload. If I ever make piggyback payloads they should work with UART4.
 
 Standalone payloads share some common code so I moved it out to a separate `standalone-util.c` file.
+
+# Dumping mt6580 BROM
+## Bringing the dead smartphone to the minimum working condition
+I've got a broken smartphone of a forgotten origin that later identified as mt6580. The phone had no back cover and no battery. Main PCB was supposed to be connected with the bottom sub-board using the 32-pin Flat flexible cable. Unfortunately the bottom sub-board has gone too and all I had was a motherboard connected to the display and the cracked touchscreen. There were no useful identifiers on the motherboard except one sticker. Searching the text from sticker on the internet yielded only one sane result leading to some russian-speaking forum where the poster has been asking for firmware for this device saying he was unable to find one, as well as claiming he got scammed because he paid for a Sony Xperia phone but received this fake device.
+
+The phone didn't have USB port because it was supposed to be on sub-board. I did some very crude soldering to connect the battery and the microUSB port. A 10-kOhm resistor was used to fool the PMIC into thinking the battery is connected and is not overheating. Thankfully the board had all the necessary pins exposed as test points. However, unlike other Mediatek devices I have this one exposes only a single UART port for all types of output which brings some inconvenience because the BROM outputs at 115200 baud and everything else is at 921600.
+
+![Poor mt6580 fake phone after my manipulations](../images/brom-dump-022.jpg)
+
+## UART issues ensue
+mt6580 is a modern SoC compared to mt6577 and others I had already worked on, and I expected that I could just load the standalone `uart-dump` payload and this is it. Well yes, but actually no. First, the `DA_reset_uart_and_log` call kept halting the program so I had to finally disable this call not only for this SoC but also for mt6589 as I initially planned. Second, I don't know what was the exact culprit but I've been always getting corrupted output via UART that looked like sudden random bit errors. Here's the comparison of the BROM I dumped over UART (on the left) with the dump I later made over USB (on the right).
+
+![BROM dump comparison](../images/brom-dump-023.png)
+
+I tried changing the wires, the ground pad, the USB-UART dongle but I still had bit errors at the rate of 1 per ~30 kB of data.
+
+![🤡](../images/brom-dump-024.png)
+
+I *did* dump the BROM over UART by splitting it in 4 equally-sized sectors and dumping each one 5 times, applying a simple "best of 5" error-correction algorithm. But I wasn't satisfied with the process so I started working on a piggyback payload that would dump the BROM via USB.
+
+## Implementing a piggyback payload
+The workflow for implementing a piggyback payload has already been established and tested so I just carve out the mt6580 DA, do some RE to find necessary function addresses, find a place to patch-in a hook instruction and put my payload on top of it.
+
+The original DA produces the following log (bottom half has been cut):
+
+```
+Output Log To Uart 1
+InitLog: Nov 30 2016 11:02:57 26000000 [tJ��Iɲ��I������@��pG-��GF]
+DA build time : Nov 30 2016 11:02:53
+DA arg_size=0x8F4, flags=0x0,
+DA do releasing DRAM.
+[DDR Reserve] ddr reserve mode not be enabled yet
+RGU rgu_release_rg_dramc_conf_iso:MTK_WDT_DEBUG_CTL(590200F1)
+RGU rgu_release_rg_dramc_iso:MTK_WDT_DEBUG_CTL(590200F1)
+RGU rgu_release_rg_dramc_sref:MTK_WDT_DEBUG_CTL(590200F1)
+DDR is in self-refresh. 200F1
+DDR is in self-refresh. 200F1
+DDR is in self-refresh. 200F1
+Defalt reg_wdt_mode value is 0x64
+After Disable WDT, reg_wdt_mode value is 0x64
+Config PLL use DA's setting.
+SAL_PLL_Setup(2 211E30 0)
+SAL_PLL_Configure_All_Ex(2)
+[PWRAP] pwrap_init_DA
+[PWRAP] pwrap_init
+[PWRAP] _pwrap_init_sistrobe [Read Test of MT6350] pass,index=0 rdata=5AA5
+(................ snip ................)
+[PWRAP] _pwrap_init_sistrobe [Read Test of MT6350] tuning,index=23 rdata=6A97
+[PWRAP] _pwrap_init_reg_clock
+[PMIC_WRAP]wrap_init pass,the return value=0.
+AP_PLL_CON1= 0x3C3C23C0
+(................ snip ................)
+DISP_CG_CON1= 0x0,
+start power down
+i: 3
+i: 2
+i: 1
+power down Done
+```
+
+I decide to make a jump to the piggyback before the DA starts powering something down. According to the captured traffic of SP Flash Tool the DA is loaded at `0x200000`. Considering that, the `init` function is at `0x201424`, `init_log` is at `0x201DC0`, `printf_uart` is at `0x201C84` and so on. I couldn't come up with a better name for this function so `init_power_down_something` gets called in `init` at `0x2014E4`. This is the perfect place to cram a jump to piggyback in.
+
+![Perfect place for a jump instruction](../images/brom-dump-025.png)
+
+Judging by the previous SoCs, this piggyback should've worked from kick start. But suddenly it didn't. The last printed log line is `DISP_CG_CON1= 0x0,` meaning the jump **did** happen but there was absolutely no action afterwards. I checked if the function addresses I filled into the `da-api.h` were correct and they indeed were, I checked if I were building for mt6580 with correct CFLAGS and they were also correct.
+
+I was still thinking in wrong direction about some instruction in the piggyback might be not working properly so I came up with the simpliest test pigyback ever: a single `BLX 0x2014C2` instruction that should have printed a single debug message on UART. However it didn't, meaning the jump **to** the piggyback worked and the jump **from** the piggyback did not.
+
+If you are experienced you already know what exactly was wrong. The root of the problem was in front of my eyes in Ghidra all the time however I didn't ever notice it.
+
+At some point I asked my friends for help and [nergzd723](https://github.com/nergzd723) suggested to check if the piggyback actually lands on device. I could indeed see it getting transferred over USB in Wireshark. His next suggestion was to somehow check the actual contents of the piggyback after transferring it to the target device. For this purpose I found a big function in the middle of DA that was unused (or at least not getting called on my device) at `0x209EA0`. I filled it with `nop`s and then implemented a simple loop that iterates through the first bytes of piggyback and prints them on UART using the `print_hex_uart` function at `0x201C52`. I still concatenated the piggyback on top of DA but instead of jumping to it I jumped to the modded debug function at `0x209EA0`. After loading the DA I saw the following:
+
+```
+(................ snip ................)
+DISP_CG_CON1= 0x0,
+00000000E3A03000E3A04000E3A05000E3A06000E3A07000E3A08000E3A09000
+```
+
+And I suddenly got it. The DA has been using additional memory right after its body instead of some other SRAM region. This didn't happen with the other SoCs so far. I added a test zero-filled region to see how far does the memory usage go:
+
+![Test zero-filled region](../images/brom-dump-026.png)
+
+After re-analyzing the binary the furthest Label was detected at `0x21575C` which is 17460 bytes further away from DA body. My "fix" was to pad the original DA with zeroes. I went with 17624 additional bytes and the resulting original DA binary is now 88064 bytes long, was 70440. Adding zero bytes takes place in Makefile.
+
+![New mt6580 piggyback structure](../images/brom-dump-027.png)
+
+After padding the DA and concatenating the piggyback on top, it started working!
+
+## Looking for BROM itself
+In *MT6580 WCDMA SoC Application Processor Functional Specification / Version: 1.2 / Release date: 2015-08-10* on page 118 we can see the `0x0040_0000 - 0x0040_FFFF` region belongs to "Boot ROM" and `0x0100_0000 - 0x0100_3FFF` belongs to "On-chip SRAM", however dumping these regions yielded the following result:
+
+![The contents of Boot ROM and On-chip SRAM regions whose addresses were taken from the official datashit](../images/brom-dump-028.png)
+
+Further reading the datasheet (*3.2.2 Boot Slave* on page 118) I learned that SoC remaps the boot code, and there should be machine instructions at `0x00000000`. I try to dump from this offset and voi-la, I've got a valid BROM dump!
+
+To find SRAM base I loaded the BROM dump into Ghidra and launched [starfleetcadet75](https://gist.github.com/starfleetcadet75)'s [FindInvalidMemoryReferences.java script](https://gist.github.com/starfleetcadet75/cdc512db77d7f1fb7ef4611c2eda69a5) to list all references to undefined memory addresses. Among many references to hardware registers there were lots of accesses of the region `0x0010_0000 ~ 0x0011_0000`.
+
+![The output of FindInvalidMemoryReferences.java script](../images/brom-dump-029.png)
+
+Looks like in my case this *is* the correct part of SRAM where BROM stores its data. At this point it was just a matter of time to fill the values into `hw-api.h` and run `spft-replay` in dump mode.
+
+Later I verified a trimmed (it dumps more data than needed) BROM dump obtained with chaosmaster's bypass_utility with what I've got with my `spft-replay` and the hashes matched.
