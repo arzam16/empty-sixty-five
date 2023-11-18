@@ -234,7 +234,8 @@ class Device:
 
             off_start += pkt_sz
 
-    def write_reg(self, reg_size, addr, words, check_status=True):
+    # Some SoCs reply with 0x0000 as OK (mt6589), some reply with 0x0001 (mt6580)
+    def write_reg(self, reg_size, addr, words, expected_response=0, check_status=True):
         # support scalar
         if not isinstance(words, list):
             words = [words]
@@ -245,22 +246,21 @@ class Device:
         self.echo(addr, 4)
         self.echo(len(words), 4)
 
-        expected = 0
-        self.check(self.read(2), to_bytes(expected, 2))  # arg check
+        self.check(self.read(2), to_bytes(expected_response, 2))  # arg check
 
         for word in words:
             self.echo(word, reg_size // 8)
 
         if check_status:
-            self.check(self.read(2), to_bytes(expected, 2))  # status
+            self.check(self.read(2), to_bytes(expected_response, 2))  # status
 
-    def write16(self, addr, words, check_status=True):
+    def write16(self, addr, words, expected_response=0, check_status=True):
         logging.brom(f"write16({as_hex(addr)}, [{as_hex(words, 2)}])")
-        self.write_reg(16, addr, words, check_status)
+        self.write_reg(16, addr, words, expected_response, check_status)
 
-    def write32(self, addr, words, check_status=True):
+    def write32(self, addr, words, expected_response=0, check_status=True):
         logging.brom(f"write32({as_hex(addr)}, [{as_hex(words)}])")
-        self.write_reg(32, addr, words, check_status)
+        self.write_reg(32, addr, words, expected_response, check_status)
 
     def get_target_config(self):
         logging.brom("Get target config")

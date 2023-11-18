@@ -234,6 +234,58 @@ class MT6577(AbstractPlatform):
         logging.replay(f"<- DA: (unknown) {as_hex(self.dev.read(1))}")  # 83
 
 
+class MT6580(AbstractPlatform):
+    def __init__(self, dev):
+        self.dev = dev
+
+    def identify_chip(self):
+        hw_dict = self.dev.get_hw_sw_ver()
+        logging.replay(f"HW subcode: {as_hex(hw_dict[0], 2)}")
+        logging.replay(f"HW version: {as_hex(hw_dict[1], 2)}")
+        logging.replay(f"SW version: {as_hex(hw_dict[2], 2)}")
+        # The 0x10009000~0x1000A000 region is allocated to EFUSE controller.
+        # It is barely documented even in datasheets but the specified offset
+        # should contain some sort of additional SoC revision codes.
+        val = self.dev.read32(0x10009040)
+        logging.replay(f"0x10009040: {as_hex(val)}")
+
+    def init_pmic(self):
+        pass
+
+    def disable_watchdog(self):
+        self.dev.write32(
+            0x10007000, 0x22000064, expected_response=0x0001
+        )  # TOPRGU_WDT_MODE
+
+    def init_rtc(self):
+        pass
+
+    def identify_software(self):
+        val = self.dev.get_preloader_version()
+        val = self.dev.get_me_id()
+        val = self.dev.get_me_id()  # repeated twice
+        logging.replay(f"ME ID: {as_hex(val)}")
+        val = self.dev.get_target_config()
+        val = self.dev.get_target_config()  # repeated twice
+        logging.replay(f"Target config: {as_hex(val)}")
+        val = self.dev.get_brom_version()
+        logging.replay(f"BROM version: {as_hex(val, 1)}")
+        val = self.dev.get_preloader_version()
+
+    def init_emi(self):
+        pass
+
+    def send_payload(self, payload):
+        val = self.dev.send_da(0x200000, len(payload), 0, payload)
+        logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
+
+    def jump_to_payload(self):
+        self.dev.jump_da(0x200000)
+
+    def recv_remaining_data(self):
+        pass
+
+
 class MT6589(AbstractPlatform):
     def __init__(self, dev):
         super().__init__(dev)
