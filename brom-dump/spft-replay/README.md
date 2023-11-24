@@ -13,6 +13,7 @@ Usually old Mediatek devices from the mt65xx family do not enforce digital signa
 * mt6573
 * mt6577 / mt8317
 * mt6580
+* mt6582 / mt8382
 * mt6589 / mt8389
 
 ### License

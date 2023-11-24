@@ -4,7 +4,7 @@
 import logging
 
 from src.common import as_hex, from_bytes, target_config_to_string
-from src.platform import MT6573, MT6577, MT6580, MT6589
+from src.platform import MT6573, MT6577, MT6580, MT6582, MT6589
 
 
 class DeviceManager:
@@ -61,6 +61,8 @@ class DeviceManager:
                 )
         elif hw_code == 0x6580:
             self.platform = MT6580(self.dev)
+        elif hw_code == 0x6582:
+            self.platform = MT6582(self.dev)
         elif hw_code == 0x6583:  # The code is 0x6583 but the SoC is 6589
             self.platform = MT6589(self.dev)
         else:
