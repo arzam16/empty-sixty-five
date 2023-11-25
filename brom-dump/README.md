@@ -644,3 +644,15 @@ To find SRAM base I loaded the BROM dump into Ghidra and launched [starfleetcade
 Looks like in my case this *is* the correct part of SRAM where BROM stores its data. At this point it was just a matter of time to fill the values into `hw-api.h` and run `spft-replay` in dump mode.
 
 Later I verified a trimmed (it dumps more data than needed) BROM dump obtained with chaosmaster's bypass_utility with what I've got with my `spft-replay` and the hashes matched.
+
+# Dumping mt6582 / mt8382 BROM
+## It was silimar to mt6580
+After implementing support for mt6580, adding mt6582 was a breeze. The flow is quite similar between the two SoCs however there are some interesting details:
+1. The data exchange between the original SP Flash Tool v5.1648 and the target device was *very* short. Everything boiled down to identifying the SoCs, reading a single EFUSE register and pushing the DA right afterwards.
+2. SP Flash Tool didn't bother disabling the watchdog on mt6582. I haven't checked if BROM disables it by itself but I was afraid the standalone `uart-dump` would not have enough time to complete the work and it would be interrupte. **It is the first time I modify the original SP Flash Tool traffic** adding a function to disable the watchdog.
+3. Unlike mt6580, the original DA on mt6582 uses the most of its available memory (refered to as "Share SRAM" in the datasheet) and I could not come up with some specific padding offset. I kept increasing padding hoping the DA would stop overwriting the piggyback at some point. Some DA data remains after the piggyback body because of that. This is wrong and most likely will break things if someone plans to use more DA APIs in the future that could have used these memory regions.
+
+## Madskillz
+The mt6582 part of the writeup seems to be small, so here's a photo of one of devices I've been working with.
+
+![The remains of the Huawei Y3II phone](../images/brom-dump-030.jpg)
