@@ -341,31 +341,6 @@ class Device:
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
-    def cmd_da(self, direction, offset, length, data=None, check_status=True):
-        logging.brom(f"DA: {as_hex([direction, offset, length], 4)}")
-        self.echo(0xDA)
-
-        self.echo(direction, 4)
-        self.echo(offset, 4)
-        self.echo(length, 4)
-
-        status = self.read(2)
-
-        if from_bytes(status, 2) != 0:
-            raise RuntimeError(f"status is {as_hex(status, 2)}")
-
-        if (direction & 1) == 1:
-            self.write(data)
-        else:
-            data = self.read(length)
-
-        if check_status:
-            status = self.read(2)
-            if from_bytes(status, 2) != 0:
-                raise RuntimeError(f"status is {as_hex(status, 2)}")
-
-        return data
-
     def uart1_log_enable(self):
         logging.brom("Enable UART1 logging")
         self.echo(0xDB)
