@@ -8,7 +8,7 @@ import logging
 from src.common import as_0x, as_hex, from_bytes, to_bytes
 
 
-class Device:
+class BromProtocol:
     def __init__(self, transport):
         self.transport = transport
 

@@ -44,7 +44,7 @@ class DeviceManager:
     def replay(self, payload, simple_mode, skip_remaining_data):
         self.payload = payload
 
-        hw_code = self.dev.get_hw_code()
+        hw_code = self.brom.get_hw_code()
         logging.replay(f"HW code: {as_hex(hw_code, 2)}")
 
         if hw_code == 0x6573:

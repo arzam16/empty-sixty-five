@@ -6,8 +6,8 @@ import argparse
 import logging
 from functools import partial, partialmethod
 
+from src.brom import BromProtocol
 from src.common import as_0x
-from src.device import Device
 from src.manager import DeviceManager
 from src.transport import UsbTransport
 
@@ -99,13 +99,13 @@ to implement crashing Preloader for old platforms.
     transport = UsbTransport()
     transport.start()
 
-    device = Device(transport)
+    brom = BromProtocol(transport)
     try:
-        device.handshake()
+        brom.handshake()
     except:
         logging.critical("Handshake error!", exc_info=True)
 
-    manager = DeviceManager(device)
+    manager = DeviceManager(brom)
     if args.mode_identify:
         identify_mode(manager)
     elif args.mode_payload or args.mode_simple_payload:
