@@ -177,10 +177,10 @@ class Device:
 
         # Fall back to 32-bit registers
         read_command = 0xD1
-        if reg_size == 16 and check_status:
-            read_command = 0xD0
-        elif reg_size == 16 and not check_status:
-            read_command = 0xA2
+        if reg_size == 16:
+            read_command = 0xD0 if check_status else 0xA2
+        elif reg_size == 32:
+            read_command = 0xD1 if check_status else 0xAF
 
         self.echo(read_command)
         self.echo(addr, 4)
@@ -241,7 +241,12 @@ class Device:
             words = [words]
 
         # Fall back to 32-bit registers
-        write_command = 0xD2 if reg_size == 16 else 0xD4
+        write_command = 0xD4
+        if reg_size == 16:
+            write_command = 0xD2 if check_status else 0xA1
+        elif reg_size == 32:
+            write_command = 0xD4 if check_status else 0xAE
+
         self.echo(write_command)
         self.echo(addr, 4)
         self.echo(len(words), 4)
