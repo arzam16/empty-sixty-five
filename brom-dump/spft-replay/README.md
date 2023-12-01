@@ -16,5 +16,10 @@ Usually old Mediatek devices from the mt65xx family do not enforce digital signa
 * mt6582 / mt8382
 * mt6589 / mt8389
 
+### Project structure
+`spft-replay.py` is the entry point of `spft-replay` program. It sets up a DeviceManager (`src/manager.py`) that executes a specified scenario ("identify", "send payload") for a specific platform (`src/platform.py`) using the Mediatek BROM protocol (`src/brom.py`) over some transport (`src/transport.py`).
+
+![Project structure diagram](../../images/spft-replay-001.png)
+
 ### License
 MIT.
