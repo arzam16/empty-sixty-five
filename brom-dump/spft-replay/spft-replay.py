@@ -4,12 +4,12 @@
 
 import argparse
 import logging
-import sys
 from functools import partial, partialmethod
 
 from src.common import as_0x
 from src.device import Device
 from src.manager import DeviceManager
+from src.transport import UsbTransport
 
 LOG_LEVEL_REPLAY = logging.INFO + 1
 LOG_LEVEL_BROM_CMD = logging.INFO - 1
@@ -94,11 +94,12 @@ to implement crashing Preloader for old platforms.
 
     init_logging(args)
 
-    device = Device().find()
-    if not device:
-        logging.critical("Could not find device")
-        sys.exit(1)  # Exit immediately
+    # spft-replay supports only the USB transport as of now, but it
+    # shouldn't be hard to implement the UART transport using pyserial.
+    transport = UsbTransport()
+    transport.start()
 
+    device = Device(transport)
     try:
         device.handshake()
     except:
@@ -110,8 +111,8 @@ to implement crashing Preloader for old platforms.
     elif args.mode_payload or args.mode_simple_payload:
         payload_mode(args, manager)
 
-    logging.info("Closing device")
-    manager.finish()
+    logging.info("Stopping transport")
+    transport.stop()
 
 
 def init_logging(args):

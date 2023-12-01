@@ -3,174 +3,26 @@
 # SPDX-FileContributor: chaosmaster <https://github.com/chaosmaster>
 # SPDX-FileContributor: arzamas-16 <https://github.com/arzamas-16>
 
-import array
 import logging
-import time
 
-import usb
-import usb.backend.libusb1
-
-from src.common import as_0x, as_hex, from_bytes, report_write_progress, to_bytes
-
-BAUD = 115200
-TIMEOUT = 3
-VID = 0x0E8D
-PID = 0x0003
+from src.common import as_0x, as_hex, from_bytes, to_bytes
 
 
 class Device:
-    def __init__(self, port=None):
-        self.udev = None
-        self.dev = None
-        self.rxbuffer = array.array("B")
-        self.timeout = TIMEOUT
-
-    def find(self):
-        if self.dev:
-            raise Exception("Device already found!")
-
-        self.backend = usb.backend.libusb1.get_backend()
-
-        logging.info(
-            f"Waiting for device in BROM mode " f"({as_hex(VID, 2)}:{as_hex(PID, 2)})"
-        )
-        self.udev = None
-        while not self.udev:
-            self.udev = usb.core.find(idVendor=VID, idProduct=PID, backend=self.backend)
-            if self.udev:
-                break
-            time.sleep(0.25)
-
-        logging.info("Found device")
-        self.dev = self
-
-        try:
-            if self.udev.is_kernel_driver_active(0):
-                self.udev.detach_kernel_driver(0)
-            if self.udev.is_kernel_driver_active(1):
-                self.udev.detach_kernel_driver(1)
-        except:
-            logging.exception("USB: Cannot detach kernel driver")
-            return None
-
-        try:
-            self.configuration = self.udev.get_active_configuration()
-        except:
-            logging.exception("USB: Cannot request configuration")
-            return None
-
-        try:
-            self.udev.set_configuration(1)
-            usb.util.claim_interface(self.udev, 0)
-            usb.util.claim_interface(self.udev, 1)
-        except:
-            logging.exception("USB: Cannot claim interface")
-            return None
-
-        try:
-            cdc_if = usb.util.find_descriptor(
-                self.udev.get_active_configuration(), bInterfaceClass=0xA
-            )
-            self.ep_in = usb.util.find_descriptor(
-                cdc_if,
-                custom_match=lambda x: usb.util.endpoint_direction(x.bEndpointAddress)
-                == usb.util.ENDPOINT_IN,
-            )
-            self.ep_out = usb.util.find_descriptor(
-                cdc_if,
-                custom_match=lambda x: usb.util.endpoint_direction(x.bEndpointAddress)
-                == usb.util.ENDPOINT_OUT,
-            )
-        except:
-            logging.exception("USB: Cannot configure endpoints")
-            return None
-
-        try:
-            self.udev.ctrl_transfer(
-                0x21,
-                0x20,
-                0,
-                0,
-                array.array("B", to_bytes(BAUD, 4, "<") + b"\x00\x00\x08"),
-            )
-        except:
-            logging.exception("USB: Cannot set baudrate")
-            return None
-
-        return self
-
-    @staticmethod
-    def check(test, gold):
-        if test != gold:
-            test = as_hex(test)
-            gold = as_hex(gold)
-            raise RuntimeError(f"Unexpected output, expected {gold} got {test}")
-
-    def close(self):
-        self.dev = None
-        self.rxbuffer = array.array("B")
-
-        try:
-            usb.util.release_interface(self.udev, 0)
-            usb.util.release_interface(self.udev, 1)
-        except Exception:
-            logging.debug("USB: Could not release interfaces")
-
-        try:
-            self.udev.reset()
-        except Exception:
-            logging.debug("USB: Could not reset device")
-
-        for i in range(0, 2):
-            try:
-                self.udev.attach_kernel_driver(i)
-            except Exception:
-                logging.debug(f"USB: Could not reattach kernel driver on interface {i}")
-
-        try:
-            usb.util.dispose_resources(self.udev)
-        except Exception:
-            logging.debug("USB: Could not dispose resources")
-
-        self.udev = None
-        time.sleep(1)
+    def __init__(self, transport):
+        self.transport = transport
 
     def handshake(self):
         sequence = b"\xA0\x0A\x50\x05"
         i = 0
         while i < len(sequence):
-            self.write(sequence[i])
-            reply = self.read(1)
+            self.transport.write(sequence[i])
+            reply = self.transport.read(1)
             if reply and reply[0] == ~sequence[i] & 0xFF:
                 i += 1
             else:
                 i = 0
         logging.info("Handshake completed!")
-
-    def echo(self, words, size=1):
-        self.write(words, size)
-        self.check(from_bytes(self.read(size), size), words)
-
-    def read(self, size=1):
-        while len(self.rxbuffer) < size:
-            try:
-                self.rxbuffer.extend(
-                    self.ep_in.read(self.ep_in.wMaxPacketSize, self.timeout * 1000)
-                )
-            except usb.core.USBError as e:
-                if e.errno == 110:
-                    self.udev.reset()
-                break
-        if size <= len(self.rxbuffer):
-            result = self.rxbuffer[:size]
-            self.rxbuffer = self.rxbuffer[size:]
-        else:
-            result = self.rxbuffer
-            self.rxbuffer = array.array("B")
-
-        result = bytes(result)
-        logging.brom_io(f"<- {as_hex(result)}")
-        return result
 
     def read_reg(self, reg_size, addr, amount=1, check_status=True):
         result = []
@@ -182,22 +34,22 @@ class Device:
         elif reg_size == 32:
             read_command = 0xD1 if check_status else 0xAF
 
-        self.echo(read_command)
-        self.echo(addr, 4)
-        self.echo(amount, 4)
+        self.transport.echo(read_command)
+        self.transport.echo(addr, 4)
+        self.transport.echo(amount, 4)
 
         if check_status:
-            status = self.read(2)
+            status = self.transport.read(2)
             if from_bytes(status, 2) > 0xFF:
                 raise RuntimeError(f"status is {as_hex(status, 2)}")
 
         sz = reg_size // 8
         for _ in range(amount):
-            data = from_bytes(self.read(sz), sz)
+            data = from_bytes(self.transport.read(sz), sz)
             result.append(data)
 
         if check_status:
-            status = self.read(2)
+            status = self.transport.read(2)
             if from_bytes(status, 2) > 0xFF:
                 raise RuntimeError(f"status is {as_hex(status, 2)}")
 
@@ -209,30 +61,11 @@ class Device:
 
     def read16(self, addr, amount=1, check_status=True):
         logging.brom(f"read16({as_0x(addr)})")
-        return self.read_reg(16, addr, amount=amount, check_status=check_status)
+        return self.read_reg(16, addr, amount, check_status)
 
-    def read32(self, addr, amount=1):
+    def read32(self, addr, amount=1, check_status=True):
         logging.brom(f"read32({as_0x(addr)})")
-        return self.read_reg(32, addr, amount=amount)
-
-    def write(self, data, size=1):
-        if type(data) != bytes:
-            data = to_bytes(data, size)
-
-        data_sz = len(data)
-        # pkt_sz = self.ep_out.wMaxPacketSize
-        pkt_sz = 1024  # SP Flash Tool seems to ignore wMaxPacketSize
-
-        off_start = 0
-        while off_start < data_sz:
-            remaining = data_sz - off_start
-            off_end = off_start + (pkt_sz if remaining > pkt_sz else remaining)
-            chunk = data[off_start:off_end]
-            logging.brom_io(f"-> {as_hex(chunk)}")
-            self.ep_out.write(data[off_start:off_end], self.timeout * 1000)
-            report_write_progress(off_start, off_end, data_sz)
-
-            off_start += pkt_sz
+        return self.read_reg(32, addr, amount, check_status)
 
     # Some SoCs reply with 0x0000 as OK (mt6589), some reply with 0x0001 (mt6580)
     def write_reg(self, reg_size, addr, words, expected_response=0, check_status=True):
@@ -247,17 +80,18 @@ class Device:
         elif reg_size == 32:
             write_command = 0xD4 if check_status else 0xAE
 
-        self.echo(write_command)
-        self.echo(addr, 4)
-        self.echo(len(words), 4)
+        self.transport.echo(write_command)
+        self.transport.echo(addr, 4)
+        self.transport.echo(len(words), 4)
 
-        self.check(self.read(2), to_bytes(expected_response, 2))  # arg check
+        if check_status:  # arg check status
+            self.transport.check(self.transport.read(2), to_bytes(expected_response, 2))
 
         for word in words:
-            self.echo(word, reg_size // 8)
+            self.transport.echo(word, reg_size // 8)
 
-        if check_status:
-            self.check(self.read(2), to_bytes(expected_response, 2))  # status
+        if check_status:  # command execution status
+            self.transport.check(self.transport.read(2), to_bytes(expected_response, 2))
 
     def write16(self, addr, words, expected_response=0, check_status=True):
         logging.brom(f"write16({as_hex(addr)}, [{as_hex(words, 2)}])")
@@ -269,10 +103,10 @@ class Device:
 
     def get_target_config(self):
         logging.brom("Get target config")
-        self.echo(0xD8)
+        self.transport.echo(0xD8)
 
-        target_config = self.read(4)
-        status = self.read(2)
+        target_config = self.transport.read(4)
+        status = self.transport.read(2)
 
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
@@ -281,10 +115,9 @@ class Device:
 
     def get_hw_code(self):
         logging.brom("Get HW code")
-        self.echo(0xFD)
+        self.transport.echo(0xFD)
 
-        hw_code = self.read(2)
-        status = self.read(2)
+        status = self.transport.read(2)
 
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
@@ -292,12 +125,12 @@ class Device:
 
     def get_hw_sw_ver(self):
         logging.brom("Get HW/SW version")
-        self.echo(0xFC)
+        self.transport.echo(0xFC)
 
-        hw_sub_code = self.read(2)
-        hw_ver = self.read(2)
-        sw_ver = self.read(2)
-        status = self.read(2)
+        hw_sub_code = self.transport.read(2)
+        hw_ver = self.transport.read(2)
+        sw_ver = self.transport.read(2)
+        status = self.transport.read(2)
 
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
@@ -309,21 +142,21 @@ class Device:
             f"Send Download Agent to {as_0x(da_address)} "
             f"({da_len} bytes, {sig_len} byte signature)"
         )
-        self.echo(0xD7)
+        self.transport.echo(0xD7)
 
-        self.echo(da_address, 4)
-        self.echo(da_len, 4)
-        self.echo(sig_len, 4)
+        self.transport.echo(da_address, 4)
+        self.transport.echo(da_len, 4)
+        self.transport.echo(sig_len, 4)
 
-        status = self.read(2)
+        status = self.transport.read(2)
 
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
-        self.write(da)
+        self.transport.write(da)
 
-        checksum = from_bytes(self.read(2), 2)
-        status = from_bytes(self.read(2), 2)
+        checksum = from_bytes(self.transport.read(2), 2)
+        status = from_bytes(self.transport.read(2), 2)
 
         if status != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
@@ -332,74 +165,74 @@ class Device:
 
     def jump_da(self, da_address):
         logging.brom(f"Jump to Download Agent at {as_0x(da_address)}")
-        self.echo(0xD5)
+        self.transport.echo(0xD5)
 
-        self.echo(da_address, 4)
+        self.transport.echo(da_address, 4)
 
-        status = self.read(2)
+        status = self.transport.read(2)
 
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
     def uart1_log_enable(self):
         logging.brom("Enable UART1 logging")
-        self.echo(0xDB)
+        self.transport.echo(0xDB)
 
-        status = self.read(2)
+        status = self.transport.read(2)
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
     def power_init(self, reg, val):
         logging.brom(f"Init PMIC at {as_0x(reg)} ({as_hex(val)})")
-        self.echo(0xC4)
+        self.transport.echo(0xC4)
 
-        self.echo(reg, 4)
-        self.echo(val, 4)
+        self.transport.echo(reg, 4)
+        self.transport.echo(val, 4)
 
-        status = self.read(2)
+        status = self.transport.read(2)
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
     def power_deinit(self):
         logging.brom("Deinit PMIC")
-        self.echo(0xC5)
+        self.transport.echo(0xC5)
 
-        status = self.read(2)
+        status = self.transport.read(2)
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
     def power_read16(self, reg):
         logging.brom(f"PMIC read16({as_0x(reg, 2)})")
-        self.echo(0xC6)
-        self.echo(reg, 2)
+        self.transport.echo(0xC6)
+        self.transport.echo(reg, 2)
 
         expected = 0
-        self.check(self.read(2), to_bytes(expected, 2))  # recv ack
-        self.check(self.read(2), to_bytes(expected, 2))  # PMIC read status
+        self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # recv ack
+        self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # PMIC read status
 
-        result = from_bytes(self.read(2), 2)
+        result = from_bytes(self.transport.read(2), 2)
         return result
 
     def power_write16(self, reg, val):
         logging.brom(f"PMIC write16({as_hex(reg)}, {as_hex(val)})")
-        self.echo(0xC7)
-        self.echo(reg, 2)
-        self.echo(val, 2)
+        self.transport.echo(0xC7)
+        self.transport.echo(reg, 2)
+        self.transport.echo(val, 2)
 
         expected = 0
-        self.check(self.read(2), to_bytes(expected, 2))  # recv ack
-        self.check(self.read(2), to_bytes(expected, 2))  # PMIC write status
+        self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # recv ack
+        self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # PMIC write status
 
     def get_me_id(self):
         logging.brom("Get ME ID")
-        self.echo(0xE1)
+        self.transport.echo(0xE1)
 
-        length = from_bytes(self.read(4), 4)
+        length = from_bytes(self.transport.read(4), 4)
         if length == 0:
             raise RuntimeError("bad ME ID length")
-        me_id = self.read(length)
+        me_id = self.transport.read(length)
 
-        status = self.read(2)
+        status = self.transport.read(2)
         if from_bytes(status, 2) != 0:
             raise RuntimeError(f"status is {as_hex(status, 2)}")
 
@@ -407,18 +240,18 @@ class Device:
 
     def get_preloader_version(self):
         logging.brom("Get PRELOADER version")
-        self.write(0xFE)
+        self.transport.write(0xFE)
 
-        ver = from_bytes(self.read(1))
+        ver = from_bytes(self.transport.read(1))
         if ver == 0xFE:
             logging.warning("Cannot get PRELOADER version in BROM mode")
         return ver
 
     def get_brom_version(self):
         logging.brom("Get BROM version")
-        self.write(0xFF)
+        self.transport.write(0xFF)
 
-        ver = from_bytes(self.read(1))
+        ver = from_bytes(self.transport.read(1))
         if ver == 0xFF:
             logging.warning("Cannot get BROM version in PRELOADER mode")
         return ver
@@ -464,3 +297,19 @@ class Device:
                 f"to {as_hex(new_value, size=2)} but "
                 f"it is {as_hex(check, size=2)}"
             )
+
+    # Read bytes from transport without issuing any command.
+    # This function proxies the `read` operaion to underlying transport, and
+    # it's intended to be used in `platform.py` and `manager.py` because they
+    # don't have direct access to transport.
+    # Do not call this function from `device.py`.
+    def just_read(self, size):
+        return self.transport.read(size)
+
+    # Write bytes to transport without issuing any command.
+    # This function proxies the `write` operaion to underlying transport, and
+    # it's intended to be used in `platform.py` and `manager.py` because they
+    # don't have direct access to transport.
+    # Do not call this function from `device.py`.
+    def just_write(self, data):
+        self.transport.write(data)
