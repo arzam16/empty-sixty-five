@@ -170,12 +170,10 @@ class BromProtocol:
         return checksum
 
     def send_da_legacy(self, da_address, da):
-        logging.brom(
-            f"Send Download Agent to {as_0x(da_address)} ({len(da)} bytes)"
-        )
+        logging.brom(f"Send Download Agent to {as_0x(da_address)} ({len(da)} bytes)")
 
         # Legacy SP Flash Tool changes endianness before sending the data.
-        da = bytearray(da[:len(da) // 2 * 2])  # remove odd byte if there's any
+        da = bytearray(da[: len(da) // 2 * 2])  # remove odd byte if there's any
         for i in range(0, len(da) - 1, 2):
             da[i], da[i + 1] = da[i + 1], da[i]
         da = bytes(da)
@@ -187,9 +185,7 @@ class BromProtocol:
         self.transport.write(da)
 
     def checksum_legacy(self, address, size):
-        logging.brom(
-            f"Calculating checksum for {size} bytes as {as_0x(address)}"
-        )
+        logging.brom(f"Calculating checksum for {size} bytes as {as_0x(address)}")
         self.transport.echo(0xA4)
 
         self.transport.echo(address, 4)
@@ -198,11 +194,14 @@ class BromProtocol:
         checksum = from_bytes(self.transport.read(2), 2)
         return checksum
 
-    def jump_da(self, da_address):
+    def jump_da(self, da_address, check_status=True):
         logging.brom(f"Jump to Download Agent at {as_0x(da_address)}")
-        self.transport.echo(0xD5)
+        self.transport.echo(0xD5 if check_status else 0xA8)
 
         self.transport.echo(da_address, 4)
+
+        if not check_status:
+            return
 
         status = self.transport.read(2)
 
@@ -243,7 +242,9 @@ class BromProtocol:
 
         expected = 0
         self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # recv ack
-        self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # PMIC read status
+        self.transport.check(
+            self.transport.read(2), to_bytes(expected, 2)
+        )  # PMIC read status
 
         result = from_bytes(self.transport.read(2), 2)
         return result
@@ -256,7 +257,9 @@ class BromProtocol:
 
         expected = 0
         self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # recv ack
-        self.transport.check(self.transport.read(2), to_bytes(expected, 2))  # PMIC write status
+        self.transport.check(
+            self.transport.read(2), to_bytes(expected, 2)
+        )  # PMIC write status
 
     def get_me_id(self):
         logging.brom("Get ME ID")
