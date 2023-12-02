@@ -12,7 +12,7 @@ import usb.backend.libusb1
 from src.common import as_hex, from_bytes, report_write_progress, to_bytes
 
 
-class Transport(ABC):
+class AbstractTransport(ABC):
     @abstractmethod
     def __init__(self):
         pass
@@ -44,7 +44,7 @@ class Transport(ABC):
         self.check(from_bytes(self.read(size), size), words)
 
 
-class UsbTransport(Transport):
+class UsbTransport(AbstractTransport):
     BROM_VID = 0x0E8D
     BROM_PID = 0x0003
     BROM_BAUDRATE = 115200
