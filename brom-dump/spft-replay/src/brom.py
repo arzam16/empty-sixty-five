@@ -173,6 +173,13 @@ class BromProtocol:
         logging.brom(
             f"Send Download Agent to {as_0x(da_address)} ({len(da)} bytes)"
         )
+
+        # Legacy SP Flash Tool changes endianness before sending the data.
+        da = bytearray(da[:len(da) // 2 * 2])  # remove odd byte if there's any
+        for i in range(0, len(da) - 1, 2):
+            da[i], da[i + 1] = da[i + 1], da[i]
+        da = bytes(da)
+
         self.transport.echo(0xAD)
 
         self.transport.echo(da_address, 4)
