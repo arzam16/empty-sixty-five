@@ -117,6 +117,12 @@ class BromProtocol:
         logging.brom("Get HW code")
         self.transport.echo(0xFD)
 
+        hw_code = self.transport.read(2, timeout=200)
+        # Very old platforms don't reply this command
+        if not hw_code:
+            logging.warning("No response to get_hw_code! Is it a legacy device?")
+            return 0x0000  # return special value
+
         status = self.transport.read(2)
 
         if from_bytes(status, 2) != 0:

@@ -10,6 +10,7 @@ Usually old Mediatek devices from the mt65xx family do not enforce digital signa
 * No Windows support.
 
 ### Supported platforms:
+* mt62xx - **identification mode only**
 * mt6573
 * mt6577 / mt8317
 * mt6580

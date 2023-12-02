@@ -15,15 +15,27 @@ class DeviceManager:
 
     # Print chip IDs
     def identify(self):
-        hw_code = self.dev.get_hw_code()
-        logging.info(f"HW code: {as_hex(hw_code, 2)}")
+        hw_code = self.brom.get_hw_code()
 
-        # mt6573 is a bit different
-        if hw_code == 0x6573:
-            hw_ver = self.dev.read16(0x70026000, check_status=False)
-            sw_ver = self.dev.read16(0x70026004, check_status=False)
-            logging.info(f"HW version: {as_hex(hw_ver, size=2)}")
-            logging.info(f"SW version: {as_hex(sw_ver, size=2)}")
+        is_legacy = hw_code == 0x0000
+        if not is_legacy:  # print HW code straight away
+            logging.info(f"HW code: {as_hex(hw_code, 2)}")
+
+        if is_legacy:  # request HW code in a legacy way
+            logging.info("Trying to query legacy device info")
+            hw_code = self.brom.read16(0x80010008, check_status=False)
+            hw_sub_code = self.brom.read16(0x8001000C, check_status=False)
+            hw_ver = self.brom.read16(0x80010000, check_status=False)
+            sw_ver = self.brom.read16(0x80010004, check_status=False)
+            logging.info(f"HW code: {as_hex(hw_code, 2)}")
+            logging.info(f"HW subcode: {as_hex(hw_sub_code, 2)}")
+            logging.info(f"HW version: {as_hex(hw_ver, 2)}")
+            logging.info(f"SW version: {as_hex(sw_ver, 2)}")
+        elif hw_code == 0x6573:  # mt6573 is a bit different ableit not legacy
+            hw_ver = self.brom.read16(0x70026000, check_status=False)
+            sw_ver = self.brom.read16(0x70026004, check_status=False)
+            logging.info(f"HW version: {as_hex(hw_ver, 2)}")
+            logging.info(f"SW version: {as_hex(sw_ver, 2)}")
         else:
             hw_dict = self.brom.get_hw_sw_ver()
             logging.info(f"HW subcode: {as_hex(hw_dict[0], 2)}")
@@ -33,7 +45,10 @@ class DeviceManager:
         brom_ver = self.brom.get_brom_version()
         logging.info(f"BROM version: {as_hex(brom_ver, 1)}")
 
-        me_id = self.dev.get_me_id()
+        if is_legacy:
+            return  # Legacy devices don't support ME ID and Target Config
+
+        me_id = self.brom.get_me_id()
         logging.info(f"ME ID: {as_hex(me_id)}")
 
         config = self.brom.get_target_config()
