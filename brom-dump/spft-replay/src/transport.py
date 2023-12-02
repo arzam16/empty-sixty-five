@@ -33,10 +33,6 @@ class Transport(ABC):
     def write(self, data, size=1, timeout=-1):
         pass
 
-    @abstractmethod
-    def flush(self):
-        pass
-
     def check(self, test, gold):
         if test != gold:
             test = as_hex(test)
@@ -209,6 +205,3 @@ class UsbTransport(Transport):
             report_write_progress(off_start, off_end, data_sz)
 
             off_start += pkt_sz
-
-    def flush(self):
-        raise NotImplementedError("TODO")
