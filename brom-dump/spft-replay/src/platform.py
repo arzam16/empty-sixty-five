@@ -231,11 +231,7 @@ class MT6577(AbstractPlatform):
         self.brom.jump_da(0xC2000000)
 
     def recv_remaining_data(self):
-        logging.replay("Waiting for device to send remaining data")
-        logging.replay(f"<- DA: (unknown) {as_hex(self.brom.just_read(1))}")  # C0
-        logging.replay(f"<- DA: (unknown) {as_hex(self.brom.just_read(1))}")  # 03
-        logging.replay(f"<- DA: (unknown) {as_hex(self.brom.just_read(1))}")  # 02
-        logging.replay(f"<- DA: (unknown) {as_hex(self.brom.just_read(1))}")  # 83
+        pass
 
 
 class MT6580(AbstractPlatform):
