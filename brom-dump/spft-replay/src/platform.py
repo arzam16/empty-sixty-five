@@ -1,42 +1,52 @@
 import logging
+from abc import ABC, abstractmethod
 
 from src.common import as_0x, as_hex, target_config_to_string
 
 
-class AbstractPlatform:
-    def __init__(self, dev):
-        self.dev = dev
+class AbstractPlatform(ABC):
+    @abstractmethod
+    def __init__(self, brom):
+        self.brom = brom
 
+    @abstractmethod
     def identify_chip(self):
         pass
 
     # Initialize power subsystem of a target device. This might include
     # setting up an embedded PMIC (mt6573) or changing some settings
     # related the the 2nd CPU code (mt6577).
+    @abstractmethod
     def init_pmic(self):
         pass
 
+    @abstractmethod
     def disable_watchdog(self):
         pass
 
     # Initialize real-time clock hardware
+    @abstractmethod
     def init_rtc(self):
         pass
 
     # Usually at this stage SP Flash Tool tries to request ME ID and
     # versions of BROM and Preloader. I could not think of any better
     # name for this function.
+    @abstractmethod
     def identify_software(self):
         pass
 
     # Initialize external memory interface
+    @abstractmethod
     def init_emi(self):
         pass
 
     # Push payload bytes to the device
+    @abstractmethod
     def send_payload(self, payload):
         pass
 
+    @abstractmethod
     def jump_to_payload(self):
         pass
 
@@ -44,6 +54,7 @@ class AbstractPlatform:
     # then the Download Agent it is based on might send some data. We
     # need to receive it order to get everything initialized before it
     # will jump to the piggyback.
+    @abstractmethod
     def recv_remaining_data(self):
         pass
 
@@ -362,6 +373,9 @@ class MT6589(AbstractPlatform):
         for addr in range(0x10000000, 0x10000018 + 1, 4):
             val = self.brom.read32(addr)
             logging.replay(f"TOPRGU register {as_0x(addr)} == {as_hex(val)}")
+
+    def init_rtc(self):
+        pass
 
     def identify_software(self):
         val = self.brom.get_brom_version()
