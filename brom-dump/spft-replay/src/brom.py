@@ -169,6 +169,28 @@ class BromProtocol:
 
         return checksum
 
+    def send_da_legacy(self, da_address, da):
+        logging.brom(
+            f"Send Download Agent to {as_0x(da_address)} ({len(da)} bytes)"
+        )
+        self.transport.echo(0xAD)
+
+        self.transport.echo(da_address, 4)
+        self.transport.echo(len(da) // 2, 4)
+        self.transport.write(da)
+
+    def checksum_legacy(self, address, size):
+        logging.brom(
+            f"Calculating checksum for {size} bytes as {as_0x(address)}"
+        )
+        self.transport.echo(0xA4)
+
+        self.transport.echo(address, 4)
+        self.transport.echo(size // 2, 4)
+
+        checksum = from_bytes(self.transport.read(2), 2)
+        return checksum
+
     def jump_da(self, da_address):
         logging.brom(f"Jump to Download Agent at {as_0x(da_address)}")
         self.transport.echo(0xD5)
