@@ -249,11 +249,11 @@ $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip: | $(AUX_DIR)
 	wget \
 		--quiet \
 		--header "referer: https://spflashtool.com/download/" \
-		-O "temp-v5.1468-linux.zip" \
+		-O "temp-v5.1648-linux.zip" \
 		"https://spflashtool.com/download/SP_Flash_Tool_v5.1648_Linux.zip"
 	@echo "Checking file integrity"
-	sha256sum "temp-v5.1468-linux.zip" | grep -q -F $(CHECKSUM_SPFT_V5_1648_LINUX)
-	mv "temp-v5.1468-linux.zip" "$@"
+	sha256sum "temp-v5.1648-linux.zip" | grep -q -F $(CHECKSUM_SPFT_V5_1648_LINUX)
+	mv "temp-v5.1648-linux.zip" "$@"
 
 # init for standalone payloads
 $(SA_INIT): $(SRC_DIR)/init.s | $(SA_OUT_DIR)
