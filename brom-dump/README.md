@@ -33,6 +33,11 @@
 * [Dumping mt6582 / mt8382 BROM](#dumping-mt6582--mt8382-brom)
     * [It was similar to mt6580](#it-was-similar-to-mt6580)
     * [Madskillz](#madskillz)
+* [Dumping mt6252 BROM](#dumping-mt6252-brom)
+    * [Figuring out the legacy command protocol](#figuring-out-the-legacy-command-protocol)
+    * [RAM size detection](#ram-size-detection)
+    * [1st and 2nd-stage Download Agents](#1st-and-2nd-stage-download-agents)
+    * [Figuring out the legacy DA APIs](#figuring-out-the-legacy-da-apis)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -659,3 +664,97 @@ After implementing support for mt6580, adding mt6582 was a breeze. The flow is q
 The mt6582 part of the writeup seems to be small, so here's a photo of one of devices I've been working with.
 
 ![The remains of the Huawei Y3II phone](../images/brom-dump-030.jpg)
+
+# Dumping mt6252 BROM
+## Figuring out the legacy command protocol
+My next device was a fake Smasgnu i9100 feature phone based on the MT6252CA SoC. This SoC is not even in the mt65xx family, but I was eager to try my skills.
+
+The first thing I tried was the identification mode of `spft-replay`, and it failed immediately. The target device exposed its 0E8D:0003 USB device and even completed the handshake, but it didn't respond to the `0xFD` (`get_hw_code`) command.
+
+My next logical step was to fire up the SP Flash Tool, but then I realized the device is way too old to be supported by v5.1648 because the more or less modern versions of SP Flash Tool don't even support NAND memory, let alone SPI memory, which was exactly my case.
+
+I ended up in the 4PDA thread about the [Smart Watch Phone DZ09](https://4pda.to/forum/index.php?showtopic=670733), which contains a huge amount of useful info on smartwatches and mt62xx SoCs in general. Luckily, Russian is my native language, so I can understand everything. I downloaded [SP Flash Tool v5.1308](https://4pda.to/forum/index.php?showtopic=615788&view=findpost&p=36244514) and [some scatter file](https://4pda.to/forum/index.php?showtopic=670733&view=findpost&p=49241203) and started experimenting. I found it weird that the SP Flash Tool distribution was labeled as v5 but it looked like an early v3.
+
+I captured the USB traffic for the usual procedure of reading 0x1000 bytes starting from 0x0 and started analyzing it. Running SP Flash Tool in "Runtime Trace Mode" was very useful because it produced tons of verbose logs. It made my job a lot easier, as the logs literally self-documented the old command protocol and a few other important routines. With logs like these, I never had to reverse-engineer the `BROM.DLL` module.
+
+```
+BROM_DLL[1564][2888]: BRom_Base::SetBRomCommTimeouts(): SetCommTimeouts() OK! , COMMTIMEOUTS={ 0, 1, 50, 1, 700 }. (brom_base.cpp:220)
+BROM_DLL[1564][2888]: BRom_AutoBoot::BRom_StartCmd(0): [0] 0xA0 -> 0x5F     (brom_autoboot.cpp:263)
+BROM_DLL[1564][2888]: BRom_AutoBoot::BRom_StartCmd(0): [1] 0x0A -> 0xF5     (brom_autoboot.cpp:263)
+BROM_DLL[1564][2888]: BRom_AutoBoot::BRom_StartCmd(0): [2] 0x50 -> 0xAF     (brom_autoboot.cpp:263)
+BROM_DLL[1564][2888]: BRom_AutoBoot::BRom_StartCmd(0): [3] 0x05 -> 0xFA     (brom_autoboot.cpp:263)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x80000000[1]={ 0x0001 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x80000008[1]={ 0x00C3 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x8000000C[1]={ 0x0000 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: Old chip-recognition flow... (brom_base.cpp:1654)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x80010000[1]={ 0xCF00 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x80010008[1]={ 0x6250 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x8001000C[1]={ 0x8B00 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: New chip-recognition flow... (brom_base.cpp:1565)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x80010000[1]={ 0xCF00 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: BRom_Base::BRom_ReadCmd(): 0x80010004[1]={ 0x0101 }     (brom_base.cpp:578)
+BROM_DLL[1564][2888]: MT6252_S0101: Target H/W: DigitalDie={ hw_ver(0xCF00), sw_ver(0x0101), hw_code(0x6250), hw_sub_code(0x8B00) }, AnalogDie={ hw_ver(0x0000), hw_code(0x0000) } (brom_base.cpp:1821)
+BROM_DLL[1564][2888]: BRom_AutoBoot::BRom_StartCmd(0): Pass! (brom_autoboot.cpp:289)
+BROM_DLL[1564][2888]: BRom_Base::CreateObject(): MT6252(37), EXT_26M(2), p_bootstop(0x005DAF28), ms_boot_timeout(268435455), max_start_cmd_retry_count(1). (brom_base.cpp:1370)
+BROM_DLL[1564][2888]: Boot_FlashTool(): DA_HANDLE->rwlock: READ_LOCK ... (rwlock.cpp:291)
+```
+
+Reading the logs allowed me to implement the basic identification mode for mt62xx devices. This mode will only read the Chip IDs on this SoC family. Reading ME ID and Target Configuration is not supported on the BROM level.
+
+The most significant difference I saw later in Wireshark was a different set of command codes, and the target device didn't send back the status codes like the mt65xx SoCs do. Fortunately, the commands still worked the same way, so it was just a matter of implementing the `check_status` flag and sending an alternative "legacy" command code in `brom.py`.
+
+## RAM size detection
+While I think it's completely unnecessary, I still implemented the RAM size detection algorithm to ensure maximum compatibility with the official workflow. SP Flash Tool writes some set of values at increasing offsets and checks them in descending order. The logic behind this is if the value could not be read back, the memory at this location is unreachable.
+
+I could not figure out exactly how SP Flash Tool generated the values for testing the RAM, so I decided to spice up my code with `import random`. While the test values do differ from the "official" ones, the flow remains the same.
+
+## 1st and 2nd-stage Download Agents
+Behind the scenes, usually, I just export payload bytes from the Wireshark dump and push them to the target device as-is to see how far it would let me go without requiring more data from the host PC. The mt62xx, however, seems to be different.
+
+First of all, the `MTK_AllInOne_DA.bin` had **45** Download Agents. Looking at them in Kaitai Web IDE with cyrozap's .ksy loaded reveals each SoC has at least 2 different DA configurations depending on the value of `unk2`.
+
+Each DA configuration has **4 to 6** loadable regions, while it's just **3** on mt65xx (the first and last ones are usually some digital signature crap, and the 2nd one is the DA body itself). At the time of writing, I still haven't figured out the purpose of all these regions. A to-do for the future me: write a script for extracting DAs by a given SoC ID instead of relying on hardcoded file offsets in the `Makefile`.
+
+The multi-stage Download Agents were another interesting aspect. Initially, the SP Flash Tool pushes a small binary to one offset, then the larger DA to another offset, and jumps to the first binary. A quick RE revealed that the 1st-stage DA performs pre-initialization routines and jumps to a hardcoded offset where the primary DA awaits launch.
+
+The way these binaries are pushed is also interesting. On mt65xx, there's the `0xD7` command (`send_da`) that sends a target memory offset, payload size, and signature length followed by the executable binary. For mt62xx, SP Flash Tool seems to send a target memory offset, **half the payload size**, followed by the executable binary **except for the endianness change**. The code is stored in `MTK_AllInOne_DA.bin` as little-endian, is received by the target as little-endian, but pushed as big-endian. For some reason, I didn't pay attention to this detail and spent a day trying to understand why my code wasn't working. Thankfully, everything is sorted out now. The only thing I don't like in the current code is the hardcoded path for the 1st-stage DA for mt6252.
+
+## Figuring out the legacy DA APIs
+
+The 2nd-stage DA loaded fine in Ghidra with the following settings:
+
+| Parameter    | Value                 |
+|--------------|-----------------------|
+| Language ID  | ARM:LE:32:v5t (1.107) |
+| Compiler ID  | default               |
+| Processor    | ARM                   |
+| Endian       | Little                |
+| Address Size | 32                    |
+| Base address | 08100000              |
+
+The decompiled code is nice, but sometimes the functions are long or not straightforward. I tried using OpenAI's ChatGPT (the free v3.5 model), asking it to explain the code and suggest how I could rename some variables. I was actually impressed! While not 100% accurate, ChatGPT was *mostly* on point and gave concise explanations. Then I learned these plugins exist:
+
+* [Ghidra: GptHidra](https://github.com/evyatar9/GptHidra) (suggested by [Ristovski](https://github.com/Ristovski))
+* [IDA: Gepetto](https://github.com/JusticeRage/Gepetto)
+
+| Function address | How I renamed it | Description                                                                                                                                                        |
+|------------------|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `0x081036a6`       | init             | Initialize peripherals and process incoming commands one by one. Enter infinite loop (halt) upon receiving specific commands                                       |
+| `0x081036a6`       | handle_command   | Run routines based on the received command code                                                                                                                    |
+| `0x08112898`       | memcmp           | Perform a byte-wise comparison between two memory blocks and return the difference when encountered or  0 if both blocks are identical within the specified length |
+| `0x08100116`       | memcpy           | Copy a memory block from one location to another                                                                                                                   |
+| `0x0810bd4c`       | memsearch        | Search for a specific pattern within a memory range, returning the location of the pattern if found                                                                |
+| `0x08100154`       | detect_ram       | Determine memory boundaries                                                                                                                                        |
+| `0x08100028`       | dumb_wait        | Delay loop                                                                                                                                                         |
+| `0x08100028`       | init_storage     | Query internal storage settings from the PC                                                                                                                        |
+| `0x08112820`       | just_jump        | Jump to far destinations. Few more functions after just_jump do the same except they also allow to carry the arguments                                             |
+| `0x0810896c`       | neutered_print   | Neutered debug function to print text. Basically an infinite loop                                                                                                  |
+| `0x0810896c`       | setup_io_ops     | Configure io_ops based on selected transport (UART/USB)                                                                                                            |
+
+The I/O API is quite similar to the one described in [Figuring out I/O API](#figuring-out-io-api), except there are no functions for reading and writing 8-byte-long values. However, the `write(char* data, uint len)` function is definitely worth mentioning. I still don't understand why exactly, but it's impossible to use it to write more than 8 bytes at once; otherwise, it spits out damaged data. In `da-api.h` for the mt6252 SoC, I had to implement a small proxy function that will use the DA-provided `write(char* data, uint len)` to write an arbitrary amount of bytes one by one.
+
+Missing `print` functions were also an issue because the `hello-world-uart` payload depends on them. I found out I could output data over UART using the `io_uart_writeb` function at `0x08103930`, so I turned the `DA_uart_putc` function into a simple wrapper for `io_uart_writeb`, making it very similar to what mt65xx DAs actually have. `DA_uart_print_hex` was borrowed from `standalone-util.c`, and `DA_uart_printf` was crudely hacked together just to get any kind of output from it. Ideally, I should've used [mpaland/printf](https://github.com/mpaland/printf) (as suggested by [Mis012](https://github.com/Mis012)), which was designed specifically for embedded environments. But I thought it's not worth spending lots of time figuring out building and linking it.
+
+After filling in the contents of `hw-api.h` and `hw-api.s`, everything left to do was to add some new rules to the Makefile. The fact that the newly introduced SP Flash Tool carries an `MTK_AllInOne_DA.bin` with **45** Download Agents for various mt62xx SoCs means we won't need another SP Flash Tool dependency in the upcoming future.
+
+Working on mt6252 was actually fun, and I liked the idea that I could use ChatGPT for help with basic RE. I wish I had more mt62xx devices to add support for, though!

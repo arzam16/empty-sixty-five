@@ -9,6 +9,7 @@ BUILD_DIR		:= $(CURDIR)/build
 AUX_DIR			:= $(BUILD_DIR)/aux
 OUT_DIR			:= $(BUILD_DIR)/out
 RELEASE_DIR		:= $(BUILD_DIR)/release
+CHECKSUM_SPFT_V5_1308_WINDOWS := "a90f72b58f20255ae9e17f364ca29d817512b22eb6ef6f0b2080db5f2d0589a6"
 CHECKSUM_SPFT_V5_1648_LINUX := "9c9c57405ee35044e41d7958cfbd01232107101ec5cec03539d33438cbe38b4b"
 
 PB_PAYLOADS		:= hello-world-uart \
@@ -39,7 +40,9 @@ SA_RELEASES		= $(foreach P, $(SA_PAYLOADS), $(SA_RELEASE_DIR)/$(TARGET)-$(P).bin
 
 ALL_RELEASES	= $(SA_RELEASES) $(PB_RELEASES)
 
-AVAILABLE_SOCS		:= mt6573 mt6577 mt6580 mt6582 mt6589
+AVAILABLE_SOCS		:= mt6252 mt6573 mt6577 mt6580 mt6582 mt6589
+MT6252_RELEASES		:= $(PB_RELEASES)
+MT6252_FLAGS		:= -mcpu=arm926ej-s
 MT6573_RELEASES		:= $(PB_RELEASES)
 MT6573_FLAGS		:= -mcpu=arm1176jzf-s
 MT6577_RELEASES		:= $(SA_RELEASES)
@@ -132,6 +135,39 @@ $(PB_RELEASE_DIR)/$(TARGET)-%.bin: $(TARGET_DA_PATCHED) $(PB_OUT_DIR)/$(TARGET)-
 # LD script for piggyback payloads
 $(PB_LD_SCRIPT): $(TARGET_MEMORY) $(TARGET_DA_PATCHED)
 	python3 scripts/piggyback-ld.py $^ "$@"
+
+# mt6252 is a bit special, it requires a 1st-stage Download Agent
+$(AUX_DIR)/mt6252-da-1st-stage.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1308_Windows.zip | $(AUX_DIR)
+	7z x -so "$<" "MTK_FlashTool_v5.1308/MTK_AllInOne_DA.bin" |\
+		tail -c +2385401 | head -c 1516 \
+		> "$@"
+
+# TARGET_DA_ORIGINAL for mt6252
+$(AUX_DIR)/mt6252-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1308_Windows.zip $(AUX_DIR)/mt6252-da-1st-stage.bin | $(AUX_DIR)
+	7z x -so "$<" "MTK_FlashTool_v5.1308/MTK_AllInOne_DA.bin" |\
+		tail -c +2386917 | head -c 94456 |\
+		cat - /dev/zero | head -c 121344 \
+	> "$@"
+
+# TARGET_DA_PATCHED for mt6252
+# Patch the internal memory initialization routine to jump to our payload
+# before Download Agent starts waiting for more data from SP Flash Tool.
+#
+# Before patch:
+# ======================================================================
+# 081036b0 ff f7 66 f8     bl         setup_io_ops
+# 081036b4 fd f7 33 fa     bl         FUN_08100b1e
+# 081036b8 ff f7 aa f8     bl         init_storage
+#
+#
+# After patch:
+# ======================================================================
+# 081036b0 ff f7 66 f8     bl         setup_io_ops
+# 081036b4 fd f7 33 fa     bl         FUN_08100b1e
+# 081036b8 XX XX XX XX     blx        PAYLOAD_ENTRY_POINT
+$(OUT_DIR)/mt6252-da-patched.bin: $(TARGET_DA_ORIGINAL) $(TARGET_MEMORY) | $(OUT_DIR)
+	python3 scripts/patch-da.py \
+		"$<" $(TARGET_MEMORY) 0x081036b8 "$@"
 
 # TARGET_DA_ORIGINAL for mt6573
 $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
@@ -244,6 +280,16 @@ $(AUX_DIR)/mt6589-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 $(OUT_DIR)/mt6589-da-patched.bin: $(AUX_DIR)/mt6589-da-original.bin | $(OUT_DIR) $(AUX_DIR)
 	python3 scripts/patch-da.py \
 		"$<" $(TARGET_MEMORY) 0x12000cda "$@"
+
+# Originally found there: https://mtktool.com/mtk-flash-tool-v5-1308
+$(AUX_DIR)/SP_Flash_Tool_v5.1308_Windows.zip: | $(AUX_DIR)
+	wget \
+		--quiet \
+		-O "temp-v5.1308-windows.zip" \
+		"https://web.archive.org/web/20231208231811/https://download2284.mediafire.com/b5is1avaj1jgl04B8tq3q0TPmKHb-ACPc9ZPenCW-xxaFl96lVZE5e_FkJYAWaOvWb6LwyzL7XAsnYTBIsgHNNrxA7DNDNmagHUTk1MJgRhr-MKgRoUUr_jttG6FQ5UZ1_GtyC2TpfAT1DgSUlZ5zaUJNX5M6xlmFe8088aC4Wfs4Q/aiympk4my4ftrmq/MTK_FlashTool_v5.1308.zip"
+	@echo "Checking file integrity"
+	sha256sum "temp-v5.1308-windows.zip" | grep -q -F $(CHECKSUM_SPFT_V5_1308_WINDOWS)
+	mv "temp-v5.1308-windows.zip" "$@"
 
 $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip: | $(AUX_DIR)
 	wget \
