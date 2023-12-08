@@ -307,7 +307,7 @@ Now I just need to add this call to my `hello-world-uart` payload and it should 
 
 ![mt6573 hello-world-uart payload output](../images/brom-dump-016.png)
 
-... *ta-da!* The introduced call doesn't seem to harm the mt6589 variant of payload so I decided to not guard it with `#ifdef TARGET_MT6573` but kept the appropriate Makefile change for setting a `TARGET_MTxxxx` for future. **Update**: after the mt658**0** the `#if` is there. `reset_uart_and_log` will not be called on mt6580 and mt6589.
+... *ta-da!* The introduced call doesn't seem to harm the mt6589 variant of payload so I decided to not guard it with `#ifdef TARGET_MT6573` but kept the appropriate Makefile change for setting a `TARGET_MTxxxx` for future. **Update**: after adding mt6582 support I started referring to this function as to `DA_init` for piggyback payloads. The platforms that don't require any additional initialization will have an empty `DA_init` function in their respective `da-api.h` headers.
 
 # chaosmaster's generic_dump
 The `generic_dump` payload found in the [bypass_payloads](https://github.com/chaosmaster/bypass_payloads/blob/master/generic_dump.c) is quite an interesting solution worth explaining.

@@ -6,9 +6,9 @@
 
 #include <stdint.h>
 
-void (*DA_reset_uart_and_log)() =
-	( void (*)() )
-	(0x120093A6 + 1);
+void DA_init() {
+	// No init required on this platform.
+}
 
 void (*DA_putc_wrapper_uart)(uint8_t) =
 	( void (*)(uint8_t) )

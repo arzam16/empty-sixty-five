@@ -6,9 +6,10 @@
 
 #include <stdint.h>
 
-void (*DA_reset_uart_and_log)() =
-	( void (*)() )
-	(0x00200F40 + 1);
+void DA_init() {
+	// reset_uart_and_log
+	((void (*)())(0x00200F40 + 1))();
+}
 
 void (*DA_putc_wrapper_uart)(uint8_t) =
 	( void (*)(uint8_t) )
