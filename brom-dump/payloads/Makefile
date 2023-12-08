@@ -45,7 +45,7 @@ MT6252_RELEASES		:= $(PB_RELEASES)
 MT6252_FLAGS		:= -mcpu=arm926ej-s
 MT6573_RELEASES		:= $(PB_RELEASES)
 MT6573_FLAGS		:= -mcpu=arm1176jzf-s
-MT6577_RELEASES		:= $(SA_RELEASES)
+MT6577_RELEASES		:= $(PB_RELEASES) $(SA_RELEASES)
 MT6577_FLAGS		:= -mcpu=cortex-a9
 MT6580_RELEASES		:= $(PB_RELEASES) $(SA_RELEASES)
 MT6580_FLAGS		:= -mcpu=cortex-a7
@@ -195,6 +195,30 @@ $(AUX_DIR)/mt6573-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | 
 $(OUT_DIR)/mt6573-da-patched.bin: $(TARGET_DA_ORIGINAL) $(TARGET_MEMORY) | $(OUT_DIR)
 	python3 scripts/patch-da.py \
 		"$<" $(TARGET_MEMORY) 0x90005bd8 "$@"
+
+# TARGET_DA_ORIGINAL for mt6577
+# Use the DA for 0x6575 0xCB00 0xE201 (MT6575E2 which is remapped by SP Flash Tool to MT6577E1)
+$(AUX_DIR)/mt6577-da-original.bin: $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip | $(AUX_DIR)
+	7z x -so "$<" "SP_Flash_Tool_v5.1648_Linux/MTK_AllInOne_DA.bin" |\
+		tail -c +256693 | head -c 137184 \
+		> "$@"
+
+# TARGET_DA_PATCHED for mt6577
+# Before patch:
+# ======================================================================
+# c2001ae0 ff f7 77 f8     bl         FUN_c2000bd2
+# c2001ae4 06 f0 6e f8     bl         FUN_c2007bc4
+# c2001ae8 ff f7 89 f8     bl         FUN_c2000bfe
+#
+#
+# After patch:
+# ======================================================================
+# c2001ae0 ff f7 77 f8     bl         FUN_c2000bd2
+# c2001ae4 06 f0 6e f8     bl         FUN_c2007bc4
+# c2001ae8 XX XX XX XX     blx        PAYLOAD_ENTRY_POINT
+$(OUT_DIR)/mt6577-da-patched.bin: $(AUX_DIR)/mt6577-da-original.bin | $(OUT_DIR) $(AUX_DIR)
+	python3 scripts/patch-da.py \
+		"$<" $(TARGET_MEMORY) 0xc2001ae8 "$@"
 
 # TARGET_DA_ORIGINAL for mt6580
 # Add extra zero padding for DA memory allocations
