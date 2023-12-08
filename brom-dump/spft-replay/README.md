@@ -9,13 +9,17 @@ Usually old Mediatek devices from the mt65xx family do not enforce digital signa
 * No kamakiri support.
 * No Windows support.
 
-### Supported platforms:
-* mt62xx - **identification mode only**
+### Supported platforms (traffic replay & payloads)
+* mt6252
 * mt6573
 * mt6577 / mt8317
 * mt6580
 * mt6582 / mt8382
 * mt6589 / mt8389
+
+All non listed mt62xx platforms *may* work in **identification mode only**.
+
+All non listed mt65xx platforms *must* work in **identification mode**. They *should* work in **simple payload mode** given a properly built standalone payload is provided.
 
 ### Project structure
 `spft-replay.py` is the entry point of `spft-replay` program. It sets up a DeviceManager (`src/manager.py`) that executes a specified scenario ("identify", "send payload") for a specific platform (`src/platform.py`) using the Mediatek BROM protocol (`src/brom.py`) over some transport (`src/transport.py`).

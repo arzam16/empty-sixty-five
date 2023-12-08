@@ -4,7 +4,7 @@
 import logging
 
 from src.common import as_hex, from_bytes, target_config_to_string
-from src.platform import MT6573, MT6577, MT6580, MT6582, MT6589
+from src.platform import MT6252, MT6573, MT6577, MT6580, MT6582, MT6589
 
 
 class DeviceManager:
@@ -60,10 +60,30 @@ class DeviceManager:
         self.payload = payload
 
         hw_code = self.brom.get_hw_code()
+
+        is_legacy = hw_code == 0x0000
+        if is_legacy:
+            logging.info("Trying to query legacy device info")
+            hw_code = self.brom.read16(0x80010008, check_status=False)
+
         logging.replay(f"HW code: {as_hex(hw_code, 2)}")
 
-        if hw_code == 0x6573:
-            self.platform = MT6573(self.dev)
+        if hw_code == 0x6250:
+            ver = tuple(
+                [
+                    self.brom.read16(0x80010000 + x, check_status=False)
+                    for x in [0xC, 0x0, 0x4]
+                ]
+            )
+            if ver == (0x8B00, 0xCF00, 0x0101):
+                logging.replay("Detected MT6252CA")
+                self.platform = MT6252(self.brom)
+            else:
+                raise Exception(
+                    "Unsupported hardware " f"{', '.join(as_hex(x, 2) for x in ver)}"
+                )
+        elif hw_code == 0x6573:
+            self.platform = MT6573(self.brom)
         elif hw_code == 0x6575:
             # There are multiple revisions of mt6575 SoCs
             ver = self.brom.get_hw_sw_ver()
@@ -159,4 +179,3 @@ class DeviceManager:
                 logging.info(f"<- DA: {as_hex(data)}")
         except KeyboardInterrupt:
             logging.info("Stopped reading")
-

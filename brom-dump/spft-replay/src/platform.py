@@ -1,4 +1,6 @@
 import logging
+import os
+import random
 from abc import ABC, abstractmethod
 
 from src.common import as_0x, as_hex, target_config_to_string
@@ -57,6 +59,142 @@ class AbstractPlatform(ABC):
     @abstractmethod
     def recv_remaining_data(self):
         pass
+
+
+class MT6252(AbstractPlatform):
+    def __init__(self, brom):
+        super().__init__(brom)
+
+        # Try to read the 1st-stage DA as early as possible. If we fail
+        # here now, the device won't be stuck waiting for us later.
+        self.da_1st_stage = None
+
+        # get path to platform.py
+        path = os.path.abspath(__file__)
+        # relative paths like this are evil but I had no other ideas :(
+        path = os.path.join(path, "../../../payloads/build/aux/mt6252-da-1st-stage.bin")
+        logging.info(f"Loading 1st-stage DA from {path}")
+        with open(os.path.abspath(path), "rb") as fis:
+            self.da_1st_stage = fis.read()
+
+    def identify_chip(self):
+        for addr in [0x80000000, 0x80000008, 0x8000000C]:
+            val = self.brom.read16(addr, check_status=False)
+            logging.replay(f"{as_0x(addr)}: {as_hex(val, 2)}")
+        # <BROM_DLL.log> Old chip-recognition flow... (brom_base.cpp:1654)
+        hw_ver = self.brom.read16(0x80010000, check_status=False)
+        hw_code = self.brom.read16(0x80010008, check_status=False)
+        hw_sub_code = self.brom.read16(0x8001000C, check_status=False)
+        # <BROM_DLL.log> New chip-recognition flow... (brom_base.cpp:1565)
+        hw_ver = self.brom.read16(0x80010000, check_status=False)
+        sw_ver = self.brom.read16(0x80010004, check_status=False)
+        logging.info(f"HW code: {as_hex(hw_code, 2)}")
+        logging.info(f"HW subcode: {as_hex(hw_sub_code, 2)}")
+        logging.info(f"HW version: {as_hex(hw_ver, 2)}")
+        logging.info(f"SW version: {as_hex(sw_ver, 2)}")
+
+    def init_pmic(self):
+        pass
+
+    def disable_watchdog(self):
+        self.brom.write16(0x80030000, 0x2200, check_status=False)
+
+    def init_rtc(self):
+        for addr in [0x810B0000, 0x810B0000, 0x810B0050]:  # 2 repeating addresses
+            val = self.brom.read16(addr, check_status=False)
+            logging.replay(f"RTC register {as_0x(addr)} == {as_hex(val, 2)}")
+
+        self.brom.write16(0x810B0010, 0x0000, check_status=False)
+        self.brom.write16(0x810B0008, 0x0000, check_status=False)
+        self.brom.write16(0x810B000C, 0x0000, check_status=False)
+        self.brom.write16(0x810B0074, 0x0001, check_status=False)
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x0008
+
+        self.brom.write16(0x810B0050, 0xA357, check_status=False)
+        self.brom.write16(0x810B0054, 0x67D2, check_status=False)
+        self.brom.write16(0x810B0074, 0x0001, check_status=False)
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x0008
+
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x0008
+
+        self.brom.write16(0x810B0068, 0x586A, check_status=False)
+        self.brom.write16(0x810B0074, 0x0001, check_status=False)
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x0008
+
+        self.brom.write16(0x810B0068, 0x9136, check_status=False)
+        self.brom.write16(0x810B0074, 0x0001, check_status=False)
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x0008
+
+        val = self.brom.read16(0x810B0058, check_status=False)
+        logging.replay(f"RTC register 0x810B0058: {as_hex(val, 2)}")
+        self.brom.write16(0x810B0058, 0x00F1, check_status=False)
+        self.brom.write16(0x810B0000, 0x430E, check_status=False)
+        self.brom.write16(0x810B0074, 0x0001, check_status=False)
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x000E
+
+        self.brom.write16(0x810B0068, 0x0000, check_status=False)
+        self.brom.write16(0x810B0074, 0x0001, check_status=False)
+        val = self.brom.read16(0x810B0000, check_status=False)  # 0x000E
+
+    def identify_software(self):
+        val = self.brom.get_brom_version()
+        logging.replay(f"BROM version: {as_hex(val, 1)}")
+        val = self.brom.get_preloader_version()
+
+    def init_emi(self):
+        MT6252_SRAM_START = 0x08004000
+        self.brom.write16(0x80030000, 0x2200, check_status=False)  # disable WDT again
+        self.brom.write32(0x81000044, 0xFFFFFB80, check_status=False)
+
+        for addr in [0x81000074, 0x81000004]:
+            val = self.brom.read32(addr, check_status=False)
+            logging.replay(f"EMI register {as_0x(addr)} == {as_hex(val, 2)}")
+
+        self.brom.write32(
+            MT6252_SRAM_START,
+            [0x523C3C3C, 0x425F4D41, 0x4E494745, 0x003E3E3E],
+            check_status=False,
+        )
+
+        for addr in range(0x08104000, 0x08804000 + 1, 0x80000):
+            val = self.brom.read32(addr, 4, check_status=False)
+            logging.replay(f"Memory at {as_0x(addr)}: {as_hex(val)}")
+
+        logging.replay("Detect external SRAM size")
+        ext_sram_sz = 0
+        for addr in range(
+            0x08804000, MT6252_SRAM_START - 1, -0x80000
+        ):  # backward check
+            val = random.sample(range(0, 0xFFFFFFFF), 4)
+            self.brom.write32(addr - 4, val, check_status=False)
+            test = self.brom.read32(addr - 4, 4, check_status=False)
+            if val == test:
+                ext_sram_sz = addr - MT6252_SRAM_START
+                break
+        if ext_sram_sz:
+            logging.replay(
+                f"SRAM size: {as_0x(ext_sram_sz)} ({ext_sram_sz // 1024} kB)"
+            )
+        else:
+            logging.warning("Could not detect SRAM size!")
+
+    def send_payload(self, payload):
+        logging.replay("Push 1st-stage DA")
+        self.brom.send_da_legacy(0x40005000, self.da_1st_stage)
+        val = self.brom.checksum_legacy(0x08100000, len(self.da_1st_stage))
+        logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
+
+        logging.replay("Push 2nd-stage DA (our payload)")
+        self.brom.send_da_legacy(0x08100000, payload)
+        val = self.brom.checksum_legacy(0x08100000, len(payload))
+        logging.replay(f"Received DA checksum: {as_hex(val, 2)}")
+
+    def jump_to_payload(self):
+        self.brom.jump_da(0x40005000, check_status=False)
+
+    def recv_remaining_data(self):
+        val = self.brom.just_read(4)
+        logging.replay(f"<- DA: (Trailer) {as_hex(val)}")
 
 
 class MT6573(AbstractPlatform):
