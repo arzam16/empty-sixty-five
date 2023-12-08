@@ -9,7 +9,7 @@
 void main() {
 	init_standalone(HW_reg_uart0_base);
 	
-	uint32_t chip_id = *(uint32_t*)HW_reg_chip_id;
+	volatile uint32_t chip_id = *(volatile uint32_t *)HW_reg_chip_id;
 	print_uart("\nHello from mt");
 	print_hex_value(chip_id, 4);
 	print_uart("!\n");

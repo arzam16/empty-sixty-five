@@ -9,7 +9,7 @@
 void main() {
 	DA_init();
 
-	uint32_t chip_id = *(uint32_t*)HW_reg_chip_id;
+	volatile uint32_t chip_id = *(volatile uint32_t *)HW_reg_chip_id;
 	DA_uart_printf("\n\n\nHello from mt%x!\n", chip_id, 0, 0);
 
 	DA_uart_print_hex(0x12, 2);

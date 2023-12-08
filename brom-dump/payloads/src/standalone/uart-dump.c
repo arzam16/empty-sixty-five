@@ -14,7 +14,7 @@ static const uint32_t dump_regions[2][2] = {
 
 void main() {
 	uint32_t i, j, offset;
-	uint32_t value;
+	volatile uint32_t value;
 
 	init_standalone(HW_reg_uart0_base);
 	print_uart("\n\n");
@@ -24,7 +24,7 @@ void main() {
 		for (j = 0; j < dump_regions[i][1]; j += sizeof(uint32_t)) {
 			offset = dump_regions[i][0] + j;
 			value = __builtin_bswap32(
-				*(uint32_t*)offset
+				*(volatile uint32_t *)offset
 			);
 			print_hex_value(value, 8);
 		}
