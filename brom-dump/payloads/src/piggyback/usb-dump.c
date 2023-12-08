@@ -20,7 +20,7 @@ void main() {
 	
 	for (int i = 0; i < ARRAY_SIZE(dump_regions); i++) {
 		DA_usb_writel(dump_regions[i][1]);
-		DA_usb_write(dump_regions[i][0], dump_regions[i][1]);
+		DA_usb_write((uint8_t*)dump_regions[i][0], dump_regions[i][1]);
 	}
 	
 	DA_usb_writel(MAGIC_GOODBYE);
