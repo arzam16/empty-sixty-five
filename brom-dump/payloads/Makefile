@@ -248,9 +248,8 @@ $(OUT_DIR)/mt6589-da-patched.bin: $(AUX_DIR)/mt6589-da-original.bin | $(OUT_DIR)
 $(AUX_DIR)/SP_Flash_Tool_v5.1648_Linux.zip: | $(AUX_DIR)
 	wget \
 		--quiet \
-		--header "referer: https://spflashtool.com/download/" \
 		-O "temp-v5.1648-linux.zip" \
-		"https://spflashtool.com/download/SP_Flash_Tool_v5.1648_Linux.zip"
+		"https://web.archive.org/web/20230308164639/https://spflashtool.com/download/SP_Flash_Tool_v5.1648_Linux.zip"
 	@echo "Checking file integrity"
 	sha256sum "temp-v5.1648-linux.zip" | grep -q -F $(CHECKSUM_SPFT_V5_1648_LINUX)
 	mv "temp-v5.1648-linux.zip" "$@"
