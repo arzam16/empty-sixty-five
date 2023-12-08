@@ -30,6 +30,9 @@
     * [UART issues ensue](#uart-issues-ensue)
     * [Implementing a piggyback payload](#implementing-a-piggyback-payload)
     * [Looking for BROM itself](#looking-for-brom-itself)
+* [Dumping mt6582 / mt8382 BROM](#dumping-mt6582--mt8382-brom)
+    * [It was similar to mt6580](#it-was-similar-to-mt6580)
+    * [Madskillz](#madskillz)
 <!--te-->
 
 # Dumping mt6589 BROM
@@ -646,7 +649,7 @@ Looks like in my case this *is* the correct part of SRAM where BROM stores its d
 Later I verified a trimmed (it dumps more data than needed) BROM dump obtained with chaosmaster's bypass_utility with what I've got with my `spft-replay` and the hashes matched.
 
 # Dumping mt6582 / mt8382 BROM
-## It was silimar to mt6580
+## It was similar to mt6580
 After implementing support for mt6580, adding mt6582 was a breeze. The flow is quite similar between the two SoCs however there are some interesting details:
 1. The data exchange between the original SP Flash Tool v5.1648 and the target device was *very* short. Everything boiled down to identifying the SoCs, reading a single EFUSE register and pushing the DA right afterwards.
 2. SP Flash Tool didn't bother disabling the watchdog on mt6582. I haven't checked if BROM disables it by itself but I was afraid the standalone `uart-dump` would not have enough time to complete the work and it would be interrupte. **It is the first time I modify the original SP Flash Tool traffic** adding a function to disable the watchdog.
