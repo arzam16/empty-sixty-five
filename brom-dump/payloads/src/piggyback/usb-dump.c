@@ -16,14 +16,14 @@ static const uint32_t dump_regions[3][2] = {
 };
 
 void main() {
-	DA_io_usb_writel(MAGIC_HELLO);
+	DA_usb_writel(MAGIC_HELLO);
 	
 	for (int i = 0; i < ARRAY_SIZE(dump_regions); i++) {
-		DA_io_usb_writel(dump_regions[i][1]);
-		DA_io_usb_write(dump_regions[i][0], dump_regions[i][1]);
+		DA_usb_writel(dump_regions[i][1]);
+		DA_usb_write(dump_regions[i][0], dump_regions[i][1]);
 	}
 	
-	DA_io_usb_writel(MAGIC_GOODBYE);
+	DA_usb_writel(MAGIC_GOODBYE);
 	
 	while (1) {
 		do_nothing();

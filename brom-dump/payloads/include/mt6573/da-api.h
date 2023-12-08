@@ -11,23 +11,23 @@ void DA_init() {
 	((void (*)())(0x90009E64 + 1))();
 }
 
-void (*DA_putc_wrapper_uart)(uint8_t) =
+void (*DA_uart_putc)(uint8_t) =
 	( void (*)(uint8_t) )
 	(0x90007AFE + 1);
-void (*DA_print_hex_value)(uint32_t, uint32_t) =
+void (*DA_uart_print_hex)(uint32_t, uint32_t) =
 	( void (*)(uint32_t, uint32_t) )
 	(0x90007B14 + 1);
-void (*DA_printf_uart)(uint8_t*, uint32_t, uint32_t, uint32_t) =
+void (*DA_uart_printf)(uint8_t*, uint32_t, uint32_t, uint32_t) =
 	( void (*)(uint8_t*, uint32_t, uint32_t, uint32_t) )
 	(0x90007B42 + 1);
 
-void (*DA_io_usb_write)(uint8_t*, uint32_t) =
+void (*DA_usb_write)(uint8_t*, uint32_t) =
 	( void (*)(uint8_t*, uint32_t) )
 	(0x900099FE + 1);
-uint32_t (*DA_io_usb_readl)() =
+uint32_t (*DA_usb_readl)() =
 	( uint32_t (*)() )
 	(0x90009BB8 + 1);
-void (*DA_io_usb_writel)(uint32_t) =
+void (*DA_usb_writel)(uint32_t) =
 	( void (*)(uint32_t) )
 	(0x90009BE4 + 1);
 

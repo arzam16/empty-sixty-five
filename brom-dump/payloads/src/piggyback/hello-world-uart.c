@@ -10,26 +10,26 @@ void main() {
 	DA_init();
 
 	uint32_t chip_id = *(uint32_t*)HW_reg_chip_id;
-	DA_printf_uart("\n\n\nHello from mt%x!\n", chip_id, 0, 0);
+	DA_uart_printf("\n\n\nHello from mt%x!\n", chip_id, 0, 0);
 
-	DA_print_hex_value(0x12, 2);
-	DA_putc_wrapper_uart('\n');
+	DA_uart_print_hex(0x12, 2);
+	DA_uart_putc('\n');
 
-	DA_print_hex_value(0x3456, 4);
-	DA_putc_wrapper_uart('\n');
+	DA_uart_print_hex(0x3456, 4);
+	DA_uart_putc('\n');
 
-	DA_print_hex_value(0x789ABCDE, 8);
-	DA_putc_wrapper_uart('\n');
+	DA_uart_print_hex(0x789ABCDE, 8);
+	DA_uart_putc('\n');
 
 	for (int i = 0; i < 0x10; i++) {
-		DA_print_hex_value(i, 2);
-		DA_putc_wrapper_uart(' ');
+		DA_uart_print_hex(i, 2);
+		DA_uart_putc(' ');
 	}
-	DA_putc_wrapper_uart('\n');
+	DA_uart_putc('\n');
 
-	DA_putc_wrapper_uart(':');
-	DA_putc_wrapper_uart(')');
-	DA_putc_wrapper_uart('\n');
+	DA_uart_putc(':');
+	DA_uart_putc(')');
+	DA_uart_putc('\n');
 
 	while (1) {
 		do_nothing();
